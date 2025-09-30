@@ -1,52 +1,98 @@
-import React, { useState } from 'react';
-import { WiDaySunny, WiRain, WiCloudy, WiDayCloudy, WiThunderstorm, WiSnow } from 'react-icons/wi';
+import React, { useState } from "react";
+import {
+  WiDaySunny,
+  WiRain,
+  WiCloudy,
+  WiDayCloudy,
+  WiThunderstorm,
+  WiSnow,
+} from "react-icons/wi";
+
+const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
 const Weather = () => {
-  const [location, setLocation] = useState('');
+  const [location, setLocation] = useState("");
   const [forecast, setForecast] = useState(null);
-  
-  // Mock weather data - in a real app, this would come from an API
-  const mockWeatherData = {
-    location: location || 'Your Destination',
-    current: {
-      temp: 72,
-      condition: 'Sunny',
-      icon: 'sunny',
-      humidity: 45,
-      wind: 8,
-    },
-    forecast: [
-      { day: 'Mon', temp: 72, condition: 'Sunny', icon: 'sunny' },
-      { day: 'Tue', temp: 75, condition: 'Partly Cloudy', icon: 'partly-cloudy' },
-      { day: 'Wed', temp: 68, condition: 'Rain', icon: 'rain' },
-      { day: 'Thu', temp: 70, condition: 'Cloudy', icon: 'cloudy' },
-      { day: 'Fri', temp: 74, condition: 'Sunny', icon: 'sunny' },
-    ]
-  };
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const getWeatherIcon = (icon) => {
-    switch(icon) {
-      case 'sunny':
+    switch (icon) {
+      case "sunny":
         return <WiDaySunny className="text-5xl text-yellow-400" />;
-      case 'rain':
+      case "rain":
         return <WiRain className="text-5xl text-blue-400" />;
-      case 'cloudy':
+      case "cloudy":
         return <WiCloudy className="text-5xl text-gray-400" />;
-      case 'partly-cloudy':
+      case "partly-cloudy":
         return <WiDayCloudy className="text-5xl text-gray-400" />;
-      case 'thunderstorm':
+      case "thunderstorm":
         return <WiThunderstorm className="text-5xl text-purple-400" />;
-      case 'snow':
+      case "snow":
         return <WiSnow className="text-5xl text-blue-200" />;
       default:
         return <WiDaySunny className="text-5xl text-yellow-400" />;
     }
   };
 
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault();
-    // In a real app, we would fetch weather data here
-    setForecast(mockWeatherData);
+    setError(null);
+    setLoading(true);
+
+    try {
+      // Current weather
+      const res = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${OPENWEATHER_API_KEY}&units=metric`
+      );
+      const data = await res.json();
+
+      if (data.cod !== 200) {
+        setError(data.message);
+        setForecast(null);
+        setLoading(false);
+        return;
+      }
+
+      // 5-day forecast
+      const forecastRes = await fetch(
+        `https://api.openweathermap.org/data/2.5/forecast?q=${location}&appid=${OPENWEATHER_API_KEY}&units=metric`
+      );
+      const forecastData = await forecastRes.json();
+
+      // Group forecast data by day (pick midday temps)
+      const daily = [];
+      const seenDays = new Set();
+      for (let item of forecastData.list) {
+        const date = new Date(item.dt_txt);
+        const day = date.toLocaleDateString("en-US", { weekday: "short" });
+        if (!seenDays.has(day) && date.getHours() === 12) {
+          daily.push({
+            day,
+            temp: Math.round(item.main.temp),
+            condition: item.weather[0].main,
+            icon: item.weather[0].main,
+          });
+          seenDays.add(day);
+        }
+      }
+
+      setForecast({
+        location: data.name,
+        current: {
+          temp: Math.round(data.main.temp),
+          condition: data.weather[0].main,
+          icon: data.weather[0].main,
+          humidity: data.main.humidity,
+          wind: data.wind.speed,
+        },
+        forecast: daily.slice(0, 5),
+      });
+    } catch (err) {
+      setError("Failed to fetch weather data.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,11 +101,16 @@ const Weather = () => {
         <h1 className="text-3xl md:text-4xl font-display font-bold text-dark mb-8">
           Sky Gazer's Forecast
         </h1>
-        
+
         <div className="bg-white rounded-xl shadow-xl overflow-hidden mb-8">
           <div className="p-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-            <h2 className="text-2xl font-bold mb-4">Check Weather Conditions</h2>
-            <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
+            <h2 className="text-2xl font-bold mb-4">
+              Check Weather Conditions
+            </h2>
+            <form
+              onSubmit={handleSearch}
+              className="flex flex-col md:flex-row gap-4"
+            >
               <input
                 type="text"
                 value={location}
@@ -68,7 +119,7 @@ const Weather = () => {
                 className="flex-1 px-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
                 required
               />
-              <button 
+              <button
                 type="submit"
                 className="px-6 py-3 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-300 transition-colors duration-300"
               >
@@ -76,20 +127,25 @@ const Weather = () => {
               </button>
             </form>
           </div>
-          
+          {loading && <p className="text-blue-500 mt-4">Loading...</p>}
+          {error && <p className="text-red-500 mt-4">{error}</p>}
           {forecast && (
             <div className="p-6">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-800">{forecast.location}</h3>
+                  <h3 className="text-2xl font-bold text-gray-800">
+                    {forecast.location}
+                  </h3>
                   <p className="text-gray-600">Current Conditions</p>
                 </div>
                 <div className="flex items-center mt-4 md:mt-0">
                   {getWeatherIcon(forecast.current.icon)}
-                  <span className="text-5xl font-bold ml-2">{forecast.current.temp}°F</span>
+                  <span className="text-5xl font-bold ml-2">
+                    {forecast.current.temp}°F
+                  </span>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-500">Condition</p>
@@ -108,11 +164,14 @@ const Weather = () => {
                   <p className="font-medium">{forecast.current.temp}°F</p>
                 </div>
               </div>
-              
+
               <h4 className="text-lg font-semibold mb-4">5-Day Forecast</h4>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {forecast.forecast.map((day, index) => (
-                  <div key={index} className="bg-gray-50 p-4 rounded-lg text-center">
+                  <div
+                    key={index}
+                    className="bg-gray-50 p-4 rounded-lg text-center"
+                  >
                     <p className="font-medium text-gray-800">{day.day}</p>
                     <div className="my-2">{getWeatherIcon(day.icon)}</div>
                     <p className="text-gray-600">{day.temp}°F</p>
@@ -123,7 +182,7 @@ const Weather = () => {
             </div>
           )}
         </div>
-        
+
         <div className="bg-white rounded-xl shadow-xl p-6">
           <h3 className="text-xl font-bold text-dark mb-4">Travel Tips</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -133,7 +192,10 @@ const Weather = () => {
               </div>
               <div>
                 <h4 className="font-semibold">Sun Protection</h4>
-                <p className="text-sm text-gray-600">High UV index expected. Don't forget your sunscreen and sunglasses.</p>
+                <p className="text-sm text-gray-600">
+                  High UV index expected. Don't forget your sunscreen and
+                  sunglasses.
+                </p>
               </div>
             </div>
             <div className="flex items-start">
@@ -142,7 +204,9 @@ const Weather = () => {
               </div>
               <div>
                 <h4 className="font-semibold">Rain Gear</h4>
-                <p className="text-sm text-gray-600">Chance of rain on Wednesday. Consider packing an umbrella.</p>
+                <p className="text-sm text-gray-600">
+                  Chance of rain on Wednesday. Consider packing an umbrella.
+                </p>
               </div>
             </div>
           </div>
