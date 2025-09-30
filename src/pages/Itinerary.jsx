@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { FaCalendarAlt, FaMapMarkerAlt, FaUtensils, FaBed, FaPlane, FaWalking, FaTrain, FaBus, FaShip, FaShoppingBag, FaLandmark, FaCamera, FaEllipsisH, FaDollarSign } from 'react-icons/fa';
+import { FaCalendarAlt, FaMapMarkerAlt, FaUtensils, FaBed, FaPlane, FaWalking, FaTrain, FaBus, FaShip, FaShoppingBag, FaLandmark, FaCamera, FaEllipsisH, FaDollarSign, FaPlus } from 'react-icons/fa';
 import { BsSunrise, BsSunset } from 'react-icons/bs';
+import ItineraryGenerator from '../components/ItineraryGenerator';
 
 const Itinerary = () => {
   const [activeDay, setActiveDay] = useState(1);
+  const [currentItinerary, setCurrentItinerary] = useState(null);
+  const [showGenerator, setShowGenerator] = useState(false);
   
-  // Mock itinerary data
-  const itineraryData = {
+  // Mock itinerary data (fallback only)
+  const mockItineraryData = {
     destination: 'Bali, Indonesia',
     duration: '5 days',
     travelDates: 'June 15 - 20, 2023',
@@ -394,7 +397,14 @@ const Itinerary = () => {
     ]
   };
   
-  const selectedDay = itineraryData.days.find(day => day.id === activeDay);
+  const displayItinerary = currentItinerary || mockItineraryData;
+  const selectedDay = displayItinerary.days?.find(day => day.id === activeDay) || displayItinerary.days?.[0];
+
+  const handleItineraryGenerated = (newItinerary) => {
+    setCurrentItinerary(newItinerary);
+    setShowGenerator(false);
+    setActiveDay(1);
+  };
   
   const getActivityIcon = (type) => {
     switch(type) {
@@ -438,26 +448,51 @@ const Itinerary = () => {
     );
   };
 
+  if (showGenerator) {
+    return <ItineraryGenerator onItineraryGenerated={handleItineraryGenerated} />;
+  }
+
+  // Add safety check for selectedDay
+  if (!selectedDay) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-light to-gray-100 p-4 md:p-8 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Loading Itinerary...</h2>
+          <p className="text-gray-600">Please wait while we load your travel plans.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-light to-gray-100 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-display font-bold text-dark">
-              {itineraryData.destination}
+              {displayItinerary.destination}
             </h1>
             <p className="text-gray-600">
-              {itineraryData.travelDates} • {itineraryData.duration} • {itineraryData.travelers} {itineraryData.travelers > 1 ? 'Travelers' : 'Traveler'}
+              {displayItinerary.travelDates} • {displayItinerary.duration} • {displayItinerary.travelers} {displayItinerary.travelers > 1 ? 'Travelers' : 'Traveler'}
             </p>
           </div>
-          <button className="mt-4 md:mt-0 px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
-            Print Itinerary
-          </button>
+          <div className="flex gap-3 mt-4 md:mt-0">
+            <button 
+              onClick={() => setShowGenerator(true)}
+              className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            >
+              <FaPlus className="text-sm" />
+              Create New Itinerary
+            </button>
+            <button className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              Print Itinerary
+            </button>
+          </div>
         </div>
         
         {/* Day Selector */}
         <div className="flex overflow-x-auto pb-2 mb-6 -mx-2">
-          {itineraryData.days.map((day) => (
+          {displayItinerary.days.map((day) => (
             <button
               key={day.id}
               onClick={() => setActiveDay(day.id)}
