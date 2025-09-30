@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { FaMapMarkerAlt, FaCalendarAlt, FaUsers, FaDollarSign, FaHeart, FaCamera, FaUtensils, FaLandmark, FaTree, FaMusic, FaShoppingBag, FaSpinner, FaPlane, FaHotel } from 'react-icons/fa';
+import ENV from '../config/env';
+
+const { API_BASE_URL } = ENV;
 
 const ItineraryGenerator = ({ onItineraryGenerated }) => {
   const [step, setStep] = useState(1);
@@ -48,7 +51,7 @@ const ItineraryGenerator = ({ onItineraryGenerated }) => {
     setIsGenerating(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/itinerary', {
+      const response = await fetch(`${API_BASE_URL}/api/itinerary`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

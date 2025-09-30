@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ENV from "../config/env";
+const { API_BASE_URL, ORS_API_KEY } = ENV;
 import {
   FaRoute,
   FaWalking,
@@ -46,14 +47,15 @@ const RoutesPage = () => {
         mode: travelMode
       });
   
-      const apiUrl = `${ENV.API_BASE_URL}/api/directions?${params}`;
+      const apiUrl = `${API_BASE_URL}/api/directions?${params}`;
       console.log("Making API request to:", apiUrl);
   
       const res = await fetch(apiUrl, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json"
+          "Accept": "application/json",
+          "x-api-key": ORS_API_KEY
         },
         credentials: "include"
       });

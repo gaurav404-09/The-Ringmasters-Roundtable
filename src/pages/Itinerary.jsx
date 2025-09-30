@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import ENV from '../config/env';
+
+const { API_BASE_URL } = ENV;
 import { FaCalendarAlt, FaMapMarkerAlt, FaUtensils, FaBed, FaPlane, FaWalking, FaTrain, FaBus, FaShip, FaShoppingBag, FaLandmark, FaCamera, FaEllipsisH, FaDollarSign, FaPlus } from 'react-icons/fa';
 import { BsSunrise, BsSunset } from 'react-icons/bs';
 import ItineraryGenerator from '../components/ItineraryGenerator';

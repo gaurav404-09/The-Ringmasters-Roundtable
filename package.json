@@ -13,6 +13,11 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@mapbox/polyline": "^1.2.1",
+    "firebase": "^12.3.0",
+    "framer-motion": "^12.23.22",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.3",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.544.0",
     "node-fetch": "^3.3.2",

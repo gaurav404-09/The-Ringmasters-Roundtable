@@ -1,35 +1,27 @@
-// Environment variables configuration
+// Environment configuration
 const ENV = {
   // API Keys
-  OPENWEATHER_API_KEY: import.meta.env.VITE_OPENWEATHER_API_KEY || process.env.VITE_OPENWEATHER_API_KEY,
-  ORS_API_KEY: import.meta.env.VITE_ORS_API_KEY || process.env.VITE_ORS_API_KEY,
+  OPENWEATHER_API_KEY: import.meta.env.VITE_OPENWEATHER_API_KEY || '',
+  ORS_API_KEY: import.meta.env.VITE_ORS_API_KEY || '',
+  COHERE_API_KEY: import.meta.env.VITE_COHERE_API_KEY || '',
   
   // API Endpoints
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
   WEATHER_API: 'https://api.openweathermap.org/data/2.5/weather',
-  API_BASE_URL: (import.meta.env.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:3000'),
   
-  // Development mode
+  // Environment
   IS_DEVELOPMENT: import.meta.env.DEV || process.env.NODE_ENV === 'development',
   IS_PRODUCTION: import.meta.env.PROD || process.env.NODE_ENV === 'production',
 };
 
-// Log the environment configuration (remove in production)
+// Log configuration in development
 if (ENV.IS_DEVELOPMENT) {
-  console.log('Environment configuration:', {
+  console.log('Environment configuration loaded:', {
     ...ENV,
-    ORS_API_KEY: ENV.ORS_API_KEY ? '*** (set)' : '*** (missing)'
+    OPENWEATHER_API_KEY: ENV.OPENWEATHER_API_KEY ? '*** (set)' : '*** (missing)',
+    ORS_API_KEY: ENV.ORS_API_KEY ? '*** (set)' : '*** (missing)',
+    COHERE_API_KEY: ENV.COHERE_API_KEY ? '*** (set)' : '*** (missing)'
   });
-}
-
-// Validate required environment variables
-const requiredVars = ['VITE_OPENWEATHER_API_KEY', 'VITE_ORS_API_KEY'];
-const missingVars = requiredVars.filter(
-  (varName) => !import.meta.env[varName]
-);
-
-if (missingVars.length > 0 && ENV.IS_DEVELOPMENT) {
-  console.warn('Missing required environment variables:', missingVars);
-  console.log('Current environment variables:', import.meta.env);
 }
 
 export default ENV;

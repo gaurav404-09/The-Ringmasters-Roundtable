@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import MapView from "./MapView";
 import ENV from "../config/env";
 
-// Debug logs
-console.log('Environment configuration:', ENV);
+const { OPENWEATHER_API_KEY, WEATHER_API } = ENV;
 
 const formatDistance = (meters) => `${(meters / 1000).toFixed(1)} km`;
 
@@ -24,7 +23,7 @@ const TripSummaryCard = ({
 
   useEffect(() => {
     if (destination) {
-      if (!ENV.OPENWEATHER_API_KEY) {
+      if (OPENWEATHER_API_KEY) {
         console.error('OpenWeather API key is missing');
         return;
       }

@@ -1,10 +1,10 @@
-const axios = require('axios');
+import axios from 'axios';
 
 class FreeDataService {
   constructor() {
     this.nominatimBaseUrl = 'https://nominatim.openstreetmap.org';
     this.overpassBaseUrl = 'https://overpass-api.de/api/interpreter';
-    this.weatherApiKey = process.env.OPENWEATHER_API_KEY || 'your_openweather_api_key_here';
+    this.weatherApiKey = process.env.VITE_OPENWEATHER_API_KEY || process.env.OPENWEATHER_API_KEY || 'your_openweather_api_key_here';
     this.weatherBaseUrl = 'https://api.openweathermap.org/data/2.5';
   }
 
@@ -1260,4 +1260,12 @@ out skel qt;`;
   }
 }
 
-module.exports = new FreeDataService();
+const freeDataService = new FreeDataService();
+export default freeDataService;
+
+// Named exports for convenience
+export const getAttractions = (destination, budget) => freeDataService.getAttractions(destination, budget);
+export const getRestaurants = (destination, budget) => freeDataService.getRestaurants(destination, budget);
+export const getHotels = (destination, budget) => freeDataService.getHotels(destination, budget);
+export const getWeather = (destination) => freeDataService.getWeather(destination);
+export const getBudgetSymbol = (budget) => freeDataService.getBudgetSymbol(budget);
