@@ -1,6 +1,8 @@
 
 import "leaflet/dist/leaflet.css";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence } from 'framer-motion';
+import { Toaster } from 'react-hot-toast';
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Weather from "./pages/Weather";
@@ -10,14 +12,7 @@ import Events from "./pages/Events";
 import Compare from "./pages/Compare";
 import Itinerary from "./pages/Itinerary";
 import TripSummary from "./pages/TripSummary.jsx";
-import { Toaster } from 'react-hot-toast';
 import AuthPage from './pages/AuthPage';
-
-import { useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
-
-
-
 
 
 function App() {

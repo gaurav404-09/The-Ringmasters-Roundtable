@@ -7,10 +7,8 @@ import {
   WiThunderstorm,
   WiSnow,
 } from "react-icons/wi";
-import dotenv from "dotenv";
 
-dotenv.config();
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
 const Weather = () => {
   const [location, setLocation] = useState("");

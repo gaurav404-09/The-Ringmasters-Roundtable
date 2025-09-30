@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ENV from "../config/env";
 import {
   FaRoute,
   FaWalking,
@@ -33,43 +34,72 @@ const RoutesPage = () => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
+  
     try {
-      const res = await fetch(
-        `http://localhost:5000/api/directions?origin=${encodeURIComponent(
-          origin
-        )}&destination=${encodeURIComponent(destination)}&mode=${travelMode}`
-      );
-      const data = await res.json();
-
-      if (!data.routes) {
-        setError("Unable to fetch route");
-        setRoute(null);
-        setRoutesData(null);
-        setLoading(false);
-        return;
+      if (!origin.trim() || !destination.trim()) {
+        throw new Error("Please enter both origin and destination");
       }
-
-      const coords = polyline.decode(data.routes[0].geometry);
-      const leafletCoords = coords.map(([lat, lon]) => [lat, lon]);
-
-      setRoute({
-        distance: data.routes[0].summary.distance, // in meters
-        duration: data.routes[0].summary.duration, // in seconds
-        steps: data.routes[0].segments[0].steps.map((s) => ({
-          instruction: s.instruction,
-          distance: s.distance, // in meters
-        })),
-        coords: leafletCoords,
+  
+      const params = new URLSearchParams({
+        origin: origin.trim(),
+        destination: destination.trim(),
+        mode: travelMode
       });
+  
+      const apiUrl = `${ENV.API_BASE_URL}/api/directions?${params}`;
+      console.log("Making API request to:", apiUrl);
+  
+      const res = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        credentials: "include"
+      });
+  
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${res.status}`);
+      }
+  
+      const data = await res.json();
+  
+      // ORS response validation
+     // Validate server response
+if (!data.routes || data.routes.length === 0) {
+  throw new Error("No route found");
+}
 
-      setRoutesData(data.routes);
+const routeObj = data.routes[0];
+
+// Convert coordinates from [lon, lat] -> [lat, lon] for Leaflet
+const coords = routeObj.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+
+
+setRoute({
+  distance: routeObj.distance,       // meters
+  duration: routeObj.duration,       // seconds
+  steps: routeObj.steps.map((s) => ({
+    instruction: s.instruction,
+    distance: s.distance
+  })),
+  coords
+});
+
+setRoutesData(data.routes); // store all routes
+
+  
     } catch (err) {
-      setError("Failed to fetch route data.");
+      console.error("Error fetching directions:", err);
+      setError(err.message || "Error fetching directions. Please try again later.");
+      setRoute(null);
+      setRoutesData(null);
     } finally {
       setLoading(false);
     }
   };
+  
 
   const getTransportIcon = (mode) => {
     switch (mode) {

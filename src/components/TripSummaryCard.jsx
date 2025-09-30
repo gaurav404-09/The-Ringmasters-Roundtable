@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from "react";
 import MapView from "./MapView";
-import dotenv from "dotenv";
+import ENV from "../config/env";
 
-dotenv.config();
-
-const WEATHER_API = "https://api.openweathermap.org/data/2.5/weather";
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+// Debug logs
+console.log('Environment configuration:', ENV);
 
 const formatDistance = (meters) => `${(meters / 1000).toFixed(1)} km`;
 
@@ -26,8 +24,13 @@ const TripSummaryCard = ({
 
   useEffect(() => {
     if (destination) {
+      if (!ENV.OPENWEATHER_API_KEY) {
+        console.error('OpenWeather API key is missing');
+        return;
+      }
+      
       fetch(
-        `${WEATHER_API}?q=${destination}&appid=${OPENWEATHER_API_KEY}&units=metric`
+        `${ENV.WEATHER_API}?q=${encodeURIComponent(destination)}&appid=${ENV.OPENWEATHER_API_KEY}&units=metric`
       )
         .then((res) => res.json())
         .then((data) => {
