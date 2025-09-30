@@ -1,0 +1,73 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#11161d"/>
+      <stop offset="100%" stop-color="#0b0f14"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="50%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#ffd166" stop-opacity="0.28"/>
+      <stop offset="60%" stop-color="#ffd166" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffd166" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stripeRed" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c1121f"/>
+      <stop offset="100%" stop-color="#8e0e17"/>
+    </linearGradient>
+    <linearGradient id="stripeBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e2a44"/>
+      <stop offset="100%" stop-color="#121a2a"/>
+    </linearGradient>
+    <filter id="blurSmall" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#spot)"/>
+
+  <!-- Stylized tent stripes at bottom -->
+  <g transform="translate(0,760)">
+    <path d="M0,200 C200,100 300,120 480,60 C650,8 780,0 960,40 C1140,80 1320,20 1440,40 C1620,70 1760,120 1920,60 L1920,320 L0,320 Z" fill="#0a0f14"/>
+    
+    <!-- repeating stripes -->
+    <g opacity="0.5">
+      <rect x="0" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="80" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="160" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="240" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="320" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="400" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="480" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="560" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="640" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="720" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="800" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="880" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="960" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="1040" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="1120" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="1200" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="1280" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="1360" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="1440" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="1520" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="1600" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="1680" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+      <rect x="1760" y="40" width="80" height="240" fill="url(#stripeRed)"/>
+      <rect x="1840" y="40" width="80" height="240" fill="url(#stripeBlue)"/>
+    </g>
+  </g>
+
+  <!-- Festive bokeh lights -->
+  <g opacity="0.6" filter="url(#blurSmall)">
+    <circle cx="200" cy="160" r="6" fill="#ffd166"/>
+    <circle cx="300" cy="220" r="4" fill="#ffd166"/>
+    <circle cx="420" cy="120" r="5" fill="#ffd166"/>
+    <circle cx="560" cy="180" r="7" fill="#ffd166"/>
+    <circle cx="760" cy="140" r="6" fill="#ffd166"/>
+    <circle cx="980" cy="200" r="5" fill="#ffd166"/>
+    <circle cx="1180" cy="150" r="6" fill="#ffd166"/>
+    <circle cx="1380" cy="210" r="4" fill="#ffd166"/>
+    <circle cx="1580" cy="170" r="6" fill="#ffd166"/>
+  </g>
+</svg>

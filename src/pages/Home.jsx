@@ -1,104 +1,202 @@
-import React from 'react';
-import { FaUmbrellaBeach, FaRoute, FaMoneyBillWave, FaCalendarAlt, FaBalanceScale, FaClipboardList } from 'react-icons/fa';
-import { WiDaySunny } from 'react-icons/wi';
+import { Suspense } from 'react';
+import { Button } from '../components/ui/button';
+import FerrisWheel3D from '../components/FerrisWheel3D';
+import FeatureCard from '../components/FeatureCard';
+import CircusCard from '../components/CircusCard';
+import { 
+  MapPin, 
+  Cloud, 
+  CreditCard, 
+  Calendar, 
+  Users, 
+  Sparkles,
+  Camera,
+  Navigation
+} from 'lucide-react';
+// Using a placeholder image URL for now
+import circusHero from '/assets/images/placeholder-circus-hero.jpg';
 
-const features = [
-  {
-    icon: <WiDaySunny className="text-5xl text-yellow-500" />,
-    title: 'Weather Forecast',
-    description: 'Get accurate weather predictions for your travel dates'
-  },
-  {
-    icon: <FaRoute className="text-4xl text-blue-500" />,
-    title: 'Smart Routing',
-    description: 'Find the best routes and travel options'
-  },
-  {
-    icon: <FaMoneyBillWave className="text-4xl text-green-500" />,
-    title: 'Budget Planning',
-    description: 'Estimate costs and optimize your travel budget'
-  },
-  {
-    icon: <FaCalendarAlt className="text-4xl text-purple-500" />,
-    title: 'Event Discovery',
-    description: 'Find local events and activities at your destination'
-  },
-  {
-    icon: <FaBalanceScale className="text-4xl text-red-500" />,
-    title: 'Compare Destinations',
-    description: 'Evaluate multiple locations based on your preferences'
-  },
-  {
-    icon: <FaClipboardList className="text-4xl text-pink-500" />,
-    title: 'Itinerary Builder',
-    description: 'Create and manage your perfect travel schedule'
-  },
-];
-
-const Home = () => {
+const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-light to-gray-100">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* 3D Ferris Wheel Background */}
+      <Suspense fallback={
+        <div className="fixed inset-0 flex items-center justify-center">
+          <div className="absolute text-circus-cream text-2xl font-bold animate-pulse z-10">
+            Loading the magical 3D wheel...
+          </div>
+          <FerrisWheel3D /> {/* Use the SVG fallback during initial load */}
+        </div>
+      }>
+        <FerrisWheel3D />
+      </Suspense>
+
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-display font-bold text-dark mb-6">
-              Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">Ringmaster's Roundtable</span>
-            </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-12">
-              Uniting scouts, gazers, and planners for the perfect tour. Plan your journey with the wisdom of the circus council.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <button className="px-8 py-4 bg-gradient-to-r from-primary to-secondary text-white font-medium rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300">
-                Plan Your Journey
-              </button>
-              <button className="px-8 py-4 bg-white text-dark font-medium rounded-lg shadow hover:shadow-md border border-gray-200 hover:border-gray-300 transition-all duration-300">
-                Explore Destinations
-              </button>
-            </div>
+      <section className="relative min-h-screen flex items-center justify-center p-0 m-0 w-full overflow-hidden">
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-10 w-full h-full m-0 p-0"
+          style={{ 
+            backgroundImage: 'url(https://static.vecteezy.com/system/resources/thumbnails/039/895/030/small_2x/ai-generated-a-whimsical-circus-tent-background-adorned-with-striped-awnings-twinkling-lights-free-photo.jpg)',
+            animation: 'pulse 8s ease-in-out infinite',
+            transform: 'scale(1.05)',
+            minHeight: '100vh',
+            minWidth: '100vw',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+          }}
+        />
+        <div className="relative z-10 text-center max-w-4xl mx-auto">
+          <div className="mb-8 animate-float">
+            <Sparkles className="w-16 h-16 text-circus-yellow mx-auto mb-4 animate-ping-slow hover:animate-spin hover:scale-125 transition-all duration-300" />
+          </div>
+          
+          <h1 className="text-6xl md:text-8xl font-circus mb-6 bg-gradient-to-r from-circus-yellow to-circus-orange bg-clip-text text-transparent animate-bounce hover:animate-wiggle transition-all duration-300">
+            The Ringmaster's Roundtable
+          </h1>
+          
+          <p className="text-xl md:text-2xl text-muted-foreground mb-12 leading-relaxed">
+            Uniting scouts, gazers, and planners for the perfect tour.
+            <br />
+            <span className="text-circus-yellow font-semibold">Plan your magical journey through the Circus of Wonders.</span>
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              size="lg" 
+              className="bg-circus-red hover:bg-circus-red/90 text-circus-cream shadow-circus-red px-8 py-4 text-lg font-semibold rounded-full transform hover:scale-105 transition-all duration-300 hover:shadow-lg hover:shadow-circus-red/50 animate-pulse hover:animate-none"
+            >
+              Start Planning Your Adventure
+            </Button>
+            <Button 
+              size="lg"
+              style={{
+                backgroundImage: 'url(https://static.vecteezy.com/system/resources/thumbnails/025/337/005/small_2x/circus-tent-illustration-ai-generative-photo.jpg)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+              className="border-circus-yellow text-circus-yellow hover:bg-circus-yellow hover:text-background px-8 py-4 text-lg font-semibold rounded-full transform hover:scale-105 transition-all duration-300 hover:shadow-lg hover:shadow-circus-yellow/30 animate-pulse hover:animate-none"
+            >
+              Explore Features
+            </Button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Features Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-display font-bold text-center text-dark mb-12">
-          Your Travel Council Awaits
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
-            <div 
-              key={index}
-              className="bg-white p-8 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
-            >
-              <div className="text-center mb-4">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                  {feature.icon}
-                </div>
-                <h3 className="text-xl font-bold text-dark mb-2">{feature.title}</h3>
-                <p className="text-gray-600">{feature.description}</p>
-              </div>
-            </div>
-          ))}
+      {/* Basic Features Section */}
+      <section className="relative py-20 px-4 z-10">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-display text-circus-cream mb-4 animate-fade-in-up hover:animate-pulse">
+              Basic Features
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Everything you need to plan the perfect circus tour adventure.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <FeatureCard
+              icon={<Calendar className="w-12 h-12" />}
+              title="Web-based Dashboard"
+              description="A simple interface where users can input their destination and travel dates."
+              color="blue"
+            />
+            
+            <FeatureCard
+              icon={<Cloud className="w-12 h-12" />}
+              title="Weather Agent"
+              description="Fetches weather forecast for the travel dates to help you pack accordingly."
+              color="gold"
+            />
+            
+            <FeatureCard
+              icon={<MapPin className="w-12 h-12" />}
+              title="Maps Agent"
+              description="Shows travel routes with distance and time estimates for your journey."
+              color="red"
+            />
+            
+            <FeatureCard
+              icon={<CreditCard className="w-12 h-12" />}
+              title="Budget Estimator"
+              description="Rough cost breakdown of travel including fuel, transport, and flights."
+              color="blue"
+            />
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* Intermediate Features Section */}
+      <section className="relative py-20 px-4 z-10">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-display text-circus-cream mb-4 animate-fade-in-up hover:animate-pulse">
+              Intermediate Features
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Advanced planning tools for the ultimate circus experience.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <FeatureCard
+              icon={<Users className="w-12 h-12" />}
+              title="Multi-Agent Orchestra"
+              description="Weather, Maps, and Events agents work together for comprehensive planning."
+              color="gold"
+            />
+            
+            <FeatureCard
+              icon={<Navigation className="w-12 h-12" />}
+              title="Step-by-Step Guidance"
+              description="Simple itinerary generation with detailed explanations in easy language."
+              color="red"
+            />
+            
+            <FeatureCard
+              icon={<Camera className="w-12 h-12" />}
+              title="Trip Summary Card"
+              description="Beautiful cards displaying weather and route details in an elegant format."
+              color="blue"
+            />
+            
+            <FeatureCard
+              icon={<Sparkles className="w-12 h-12" />}
+              title="Magic Planning"
+              description="AI-powered suggestions for the most enchanting circus tour experience."
+              color="gold"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* CTA Section */}
-      <div className="bg-gradient-to-r from-primary to-secondary text-white py-16">
-        <div className="max-w-4xl mx-auto text-center px-4">
-          <h2 className="text-3xl font-display font-bold mb-6">Ready to Begin Your Adventure?</h2>
-          <p className="text-xl mb-8 opacity-90">
-            Join thousands of travelers who trust Ringmaster's Roundtable to plan their perfect journey.
-          </p>
-          <button className="px-8 py-3 bg-white text-primary font-medium rounded-lg shadow-lg hover:bg-opacity-90 transition-all duration-300">
-            Get Started for Free
-          </button>
+      <section className="relative py-20 px-4 z-10">
+        <div className="max-w-4xl mx-auto text-center">
+          <CircusCard variant="glass" className="text-center">
+            <Sparkles className="w-16 h-16 text-circus-yellow mx-auto mb-6" />
+            <h2 className="text-3xl md:text-4xl font-display text-circus-cream mb-6">
+              Ready to Join the Circus?
+            </h2>
+            <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
+              Let our expert agents help you create the perfect tour plan.
+              <br />
+              The greatest show on earth awaits your arrival!
+            </p>
+            <Button 
+              size="lg"
+              className="bg-circus-red hover:bg-circus-red/90 text-circus-cream shadow-circus-red px-12 py-4 text-xl font-bold rounded-full transform hover:scale-105 transition-transform"
+            >
+              Begin Your Magical Journey
+            </Button>
+          </CircusCard>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
 
-export default Home;
+export default Index;
