@@ -1,45 +1,84 @@
-import React, { useState } from 'react';
-import { FaRoute, FaWalking, FaCar, FaTrain, FaPlane, FaMapMarkerAlt, FaSearchLocation } from 'react-icons/fa';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  FaRoute,
+  FaWalking,
+  FaCar,
+  FaBicycle,
+  FaMapMarkerAlt,
+  FaSearchLocation,
+} from "react-icons/fa";
+import MapView from "../components/MapView.jsx";
+import polyline from "@mapbox/polyline";
 
-const Routes = () => {
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [travelMode, setTravelMode] = useState('driving');
-  
-  // Mock route data
-  const mockRoute = {
-    distance: '245 mi',
-    duration: '4h 15m',
-    steps: [
-      { instruction: 'Head northeast on Main St', distance: '0.2 mi', icon: 'start' },
-      { instruction: 'Turn right onto Oak Ave', distance: '1.5 mi', icon: 'turn-right' },
-      { instruction: 'Merge onto I-5 N', distance: '35 mi', icon: 'highway' },
-      { instruction: 'Take exit 72 for State Hwy 18 E', distance: '120 mi', icon: 'exit' },
-      { instruction: 'Continue on State Hwy 18 E', distance: '88 mi', icon: 'highway' },
-    ],
-    alternativeRoutes: [
-      { type: 'fastest', time: '4h 15m', distance: '245 mi', tolls: 2 },
-      { type: 'scenic', time: '5h 30m', distance: '280 mi', tolls: 0 },
-      { type: 'eco', time: '4h 45m', distance: '260 mi', tolls: 1 },
-    ]
-  };
+const formatDistance = (meters) => `${(meters / 1000).toFixed(1)} km`;
 
-  const handleSearch = (e) => {
+const formatDuration = (seconds) => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.round((seconds % 3600) / 60);
+  return hrs > 0 ? `${hrs} hr ${mins} mins` : `${mins} mins`;
+};
+
+const RoutesPage = () => {
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [travelMode, setTravelMode] = useState("driving");
+  const [route, setRoute] = useState(null);
+  const [routesData, setRoutesData] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSearch = async (e) => {
     e.preventDefault();
-    // In a real app, we would fetch route data here
-    console.log('Searching for route...');
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/directions?origin=${encodeURIComponent(
+          origin
+        )}&destination=${encodeURIComponent(destination)}&mode=${travelMode}`
+      );
+      const data = await res.json();
+
+      if (!data.routes) {
+        setError("Unable to fetch route");
+        setRoute(null);
+        setRoutesData(null);
+        setLoading(false);
+        return;
+      }
+
+      const coords = polyline.decode(data.routes[0].geometry);
+      const leafletCoords = coords.map(([lat, lon]) => [lat, lon]);
+
+      setRoute({
+        distance: data.routes[0].summary.distance, // in meters
+        duration: data.routes[0].summary.duration, // in seconds
+        steps: data.routes[0].segments[0].steps.map((s) => ({
+          instruction: s.instruction,
+          distance: s.distance, // in meters
+        })),
+        coords: leafletCoords,
+      });
+
+      setRoutesData(data.routes);
+    } catch (err) {
+      setError("Failed to fetch route data.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getTransportIcon = (mode) => {
-    switch(mode) {
-      case 'walking':
+    switch (mode) {
+      case "walking":
         return <FaWalking className="text-2xl" />;
-      case 'driving':
+      case "driving":
         return <FaCar className="text-2xl" />;
-      case 'transit':
-        return <FaTrain className="text-2xl" />;
-      case 'flying':
-        return <FaPlane className="text-2xl" />;
+      case "cycling":
+        return <FaBicycle className="text-2xl" />;
       default:
         return <FaRoute className="text-2xl" />;
     }
@@ -51,7 +90,7 @@ const Routes = () => {
         <h1 className="text-3xl md:text-4xl font-display font-bold text-dark mb-8">
           Trailblazer's Pathways
         </h1>
-        
+
         <div className="bg-white rounded-xl shadow-xl overflow-hidden mb-8">
           <div className="p-6 bg-gradient-to-r from-green-600 to-green-700 text-white">
             <h2 className="text-2xl font-bold mb-4">Plan Your Journey</h2>
@@ -84,25 +123,25 @@ const Routes = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="flex flex-wrap gap-4 pt-2">
-                {['driving', 'walking', 'transit', 'flying'].map((mode) => (
+                {["driving", "walking", "cycling"].map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     onClick={() => setTravelMode(mode)}
                     className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
                       travelMode === mode
-                        ? 'bg-white text-green-700 shadow-md'
-                        : 'bg-white/20 hover:bg-white/30 text-white'
+                        ? "bg-white text-green-700 shadow-md"
+                        : "bg-white/20 hover:bg-white/30 text-white"
                     }`}
                   >
                     {getTransportIcon(mode)}
                     <span className="ml-2 capitalize">{mode}</span>
                   </button>
                 ))}
-                
-                <button 
+
+                <button
                   type="submit"
                   className="ml-auto px-6 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-300 transition-colors duration-300 flex items-center"
                 >
@@ -112,76 +151,115 @@ const Routes = () => {
               </div>
             </form>
           </div>
-          
+
           <div className="p-6">
+            {/* Loading & Error Messages */}
+            {loading && <p className="text-blue-500 mb-4">Loading...</p>}
+            {error && <p className="text-red-500 mb-4">{error}</p>}
             {/* Map Placeholder */}
-            <div className="bg-gray-200 rounded-xl h-64 md:h-96 mb-6 flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <div className="text-4xl mb-2">🗺️</div>
-                <p>Interactive map will be displayed here</p>
-              </div>
-            </div>
-            
+            <MapView
+              routeCoords={route?.coords}
+              origin={origin}
+              destination={destination}
+            />
             {/* Route Summary */}
-            <div className="bg-green-50 p-4 rounded-lg mb-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-semibold text-lg">Recommended Route</h3>
-                  <p className="text-sm text-gray-600">Based on current conditions</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold">{mockRoute.duration}</div>
-                  <div className="text-sm text-gray-600">{mockRoute.distance}</div>
+            {route && (
+              <div className="bg-green-50 p-4 rounded-lg mb-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-semibold text-lg">Recommended Route</h3>
+                    <p className="text-sm text-gray-600">
+                      Based on current conditions
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold">
+                      {formatDuration(route.duration)}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {formatDistance(route.distance)}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-            
+            )}
+            {route && (
+              <div className="mt-6 text-center">
+                <button
+                  onClick={() =>
+                    navigate("/trip-summary", {
+                      state: {
+                        route: {
+                          origin,
+                          destination,
+                          coords: route.coords,
+                          distance: route.distance, // meters
+                          duration: route.duration, // seconds
+                          steps: route.steps,
+                        },
+                      },
+                    })
+                  }
+                  className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-500 transition-colors"
+                >
+                  View Trip Summary
+                </button>
+              </div>
+            )}
+
             {/* Step-by-step Directions */}
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold mb-4">Step-by-step Directions</h3>
-              <div className="space-y-4">
-                {mockRoute.steps.map((step, index) => (
-                  <div key={index} className="flex items-start">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-3 mt-1">
-                      {index + 1}
+            {route && (
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold mb-4">
+                  Step-by-step Directions
+                </h3>
+                <div className="space-y-4">
+                  {route.steps.map((step, index) => (
+                    <div key={index} className="flex items-start">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-3 mt-1">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{step.instruction}</p>
+                        <p className="text-sm text-gray-500">
+                          {formatDistance(step.distance)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{step.instruction}</p>
-                      <p className="text-sm text-gray-500">{step.distance}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-            
+            )}
             {/* Alternative Routes */}
-            <div>
-              <h3 className="text-xl font-semibold mb-4">Alternative Routes</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {mockRoute.alternativeRoutes.map((route, index) => (
-                  <div key={index} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="font-medium capitalize mb-2">{route.type} Route</div>
-                    <div className="flex justify-between text-sm text-gray-600">
-                      <span>{route.time}</span>
-                      <span>{route.distance}</span>
-                      <span>{route.tolls} toll{route.tolls !== 1 ? 's' : ''}</span>
-                    </div>
-                    <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full ${
-                          route.type === 'fastest' ? 'bg-blue-500' : 
-                          route.type === 'scenic' ? 'bg-green-500' : 'bg-yellow-500'
-                        }`} 
-                        style={{ width: '100%' }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
+            {routesData?.length > 1 && (
+              <div>
+                <h3 className="text-xl font-semibold mb-4">
+                  Alternative Routes
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {routesData.slice(1).map((altRoute, index) => {
+                    const leg = altRoute.legs[0];
+                    return (
+                      <div
+                        key={index}
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="font-medium mb-2">
+                          Alternative {index + 1}
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>{leg.duration.text}</span>
+                          <span>{leg.distance.text}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
-        
+
         <div className="bg-white rounded-xl shadow-xl p-6">
           <h3 className="text-xl font-bold text-dark mb-4">Travel Tips</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -191,18 +269,22 @@ const Routes = () => {
               </div>
               <div>
                 <h4 className="font-semibold">Best Time to Travel</h4>
-                <p className="text-sm text-gray-600">Light traffic expected before 7 AM and after 7 PM.</p>
+                <p className="text-sm text-gray-600">
+                  Light traffic expected before 7 AM and after 7 PM.
+                </p>
               </div>
             </div>
-            <div className="flex items-start">
+            {/* <div className="flex items-start">
               <div className="bg-blue-100 p-3 rounded-full mr-4">
                 <FaTrain className="text-xl text-blue-600" />
               </div>
               <div>
                 <h4 className="font-semibold">Public Transport</h4>
-                <p className="text-sm text-gray-600">Consider taking the train for a more relaxing journey.</p>
+                <p className="text-sm text-gray-600">
+                  Consider taking the train for a more relaxing journey.
+                </p>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
@@ -210,4 +292,4 @@ const Routes = () => {
   );
 };
 
-export default Routes;
+export default RoutesPage;
