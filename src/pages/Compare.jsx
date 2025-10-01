@@ -1,477 +1,427 @@
-import React, { useState } from 'react';
-import { FaSearch, FaMapMarkerAlt, FaCalendarAlt, FaStar, FaDollarSign, FaCloudSun, FaUtensils, FaLandmark, FaShoppingBag } from 'react-icons/fa';
+import React, { useState } from "react";
 
 const Compare = () => {
-  const [destination1, setDestination1] = useState('');
-  const [destination2, setDestination2] = useState('');
+  const [destinations, setDestinations] = useState({});
+  const [destination1Input, setDestination1Input] = useState("");
+  const [destination2Input, setDestination2Input] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  
-  // Mock data for comparison
-  const mockDestinations = {
-    'bali': {
-      name: 'Bali, Indonesia',
-      image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      rating: 4.8,
-      reviews: '12.5k',
-      description: 'Known for its forested volcanic mountains, iconic rice paddies, beaches and coral reefs.',
-      price: '$$',
-      bestTime: 'April - October',
-      avgTemp: '27-32°C',
-      highlights: ['Beaches', 'Temples', 'Rice Terraces', 'Diving'],
-      categories: {
-        food: 4.7,
-        culture: 4.9,
-        adventure: 4.5,
-        nightlife: 4.3,
-        shopping: 4.0
-      },
-      pros: ['Affordable', 'Beautiful beaches', 'Rich culture', 'Friendly locals'],
-      cons: ['Can be crowded', 'Traffic', 'Tourist scams']
-    },
-    'paris': {
-      name: 'Paris, France',
-      image: 'https://images.unsplash.com/photo-1431274173421-c1a5b82f3754?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      rating: 4.9,
-      reviews: '45.2k',
-      description: 'Famous for its art, fashion, gastronomy and culture, with world-class landmarks like the Eiffel Tower and the Louvre.',
-      price: '$$$$',
-      bestTime: 'April - June, October - November',
-      avgTemp: '15-25°C',
-      highlights: ['Eiffel Tower', 'Louvre Museum', 'Notre-Dame', 'Champs-Élysées'],
-      categories: {
-        food: 5.0,
-        culture: 5.0,
-        adventure: 3.8,
-        nightlife: 4.5,
-        shopping: 4.8
-      },
-      pros: ['Rich history', 'World-class museums', 'Amazing food', 'Romantic atmosphere'],
-      cons: ['Expensive', 'Crowded', 'Tourist scams', 'Language barrier']
-    },
-    'tokyo': {
-      name: 'Tokyo, Japan',
-      image: 'https://images.unsplash.com/photo-1545569341-9eb8b30979d9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      rating: 4.9,
-      reviews: '38.7k',
-      description: 'A mix of ultramodern and traditional, from neon-lit skyscrapers to historic temples.',
-      price: '$$$',
-      bestTime: 'March - April, October - November',
-      avgTemp: '10-30°C',
-      highlights: ['Shibuya Crossing', 'Senso-ji Temple', 'Tsukiji Market', 'Akihabara'],
-      categories: {
-        food: 5.0,
-        culture: 4.9,
-        adventure: 4.3,
-        nightlife: 4.7,
-        shopping: 4.9
-      },
-      pros: ['Incredible food', 'Efficient public transport', 'Clean and safe', 'Unique culture'],
-      cons: ['Expensive', 'Language barrier', 'Crowded', 'Small hotel rooms']
-    },
-    'new-york': {
-      name: 'New York, USA',
-      image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      rating: 4.7,
-      reviews: '52.1k',
-      description: 'The city that never sleeps, known for its iconic skyline, Broadway shows, and cultural diversity.',
-      price: '$$$$',
-      bestTime: 'April - June, September - November',
-      avgTemp: '0-30°C',
-      highlights: ['Times Square', 'Central Park', 'Statue of Liberty', 'Broadway'],
-      categories: {
-        food: 4.8,
-        culture: 4.9,
-        adventure: 4.5,
-        nightlife: 4.8,
-        shopping: 4.7
-      },
-      pros: ['Endless activities', 'World-class museums', 'Diverse food scene', 'Iconic landmarks'],
-      cons: ['Expensive', 'Crowded', 'Noisy', 'Can be overwhelming']
-    },
-    'sydney': {
-      name: 'Sydney, Australia',
-      image: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      rating: 4.8,
-      reviews: '28.3k',
-      description: 'Famous for its stunning harbor, beautiful beaches, and the iconic Sydney Opera House.',
-      price: '$$$',
-      bestTime: 'September - November, March - May',
-      avgTemp: '10-26°C',
-      highlights: ['Sydney Opera House', 'Bondi Beach', 'Harbour Bridge', 'Blue Mountains'],
-      categories: {
-        food: 4.6,
-        culture: 4.5,
-        adventure: 4.7,
-        nightlife: 4.3,
-        shopping: 4.2
-      },
-      pros: ['Beautiful beaches', 'Outdoor lifestyle', 'Friendly locals', 'Great food scene'],
-      cons: ['Expensive', 'Far from other countries', 'Sun protection needed', 'Wildlife hazards']
+
+  // Fetch comparison data from backend
+  const fetchComparison = async (d1, d2) => {
+    if (!d1.trim() || !d2.trim()) {
+      setError('Please enter both destinations');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(
+        `http://localhost:3000/api/compare`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            destination1: d1,
+            destination2: d2,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error('Failed to fetch comparison data');
+      }
+
+      const data = await res.json();
+      setDestinations({
+        left: data.destination1,
+        right: data.destination2,
+      });
+      setActiveTab('overview');
+    } catch (err) {
+      console.error("Error fetching comparison:", err);
+      setError(err.message || 'Failed to compare destinations');
+    } finally {
+      setIsLoading(false);
     }
   };
-  
-  const [selectedDestinations, setSelectedDestinations] = useState({
-    left: 'bali',
-    right: 'paris'
-  });
-  
-  const leftDestination = mockDestinations[selectedDestinations.left];
-  const rightDestination = mockDestinations[selectedDestinations.right];
-  
-  const compareCategories = [
-    { id: 'food', name: 'Food & Dining', icon: <FaUtensils className="text-red-500" /> },
-    { id: 'culture', name: 'Culture', icon: <FaLandmark className="text-amber-500" /> },
-    { id: 'adventure', name: 'Adventure', icon: <FaCloudSun className="text-green-500" /> },
-    { id: 'nightlife', name: 'Nightlife', icon: <FaStar className="text-purple-500" /> },
-    { id: 'shopping', name: 'Shopping', icon: <FaShoppingBag className="text-blue-500" /> },
-  ];
-  
-  const renderRatingBars = (leftScore, rightScore) => {
-    const maxScore = 5;
-    const leftWidth = (leftScore / maxScore) * 100;
-    const rightWidth = (rightScore / maxScore) * 100;
+
+  const handleCompare = () => {
+    fetchComparison(destination1Input, destination2Input);
+  };
+
+  // Category comparison with visual bars
+  const renderCategoryComparison = () => {
+    const left = destinations.left;
+    const right = destinations.right;
     
+    if (!left || !right || !left.categories || !right.categories) return null;
+
+    const categories = [
+      { key: 'food', label: 'Food & Dining', icon: '🍽️', color: 'bg-red-500' },
+      { key: 'culture', label: 'Culture & Heritage', icon: '🏛️', color: 'bg-amber-500' },
+      { key: 'adventure', label: 'Adventure', icon: '🏔️', color: 'bg-green-500' },
+      { key: 'nightlife', label: 'Nightlife', icon: '🌃', color: 'bg-purple-500' },
+      { key: 'shopping', label: 'Shopping', icon: '🛍️', color: 'bg-blue-500' },
+    ];
+
     return (
-      <div className="flex items-center space-x-4">
-        <div className="w-32 text-right">
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-blue-500" 
-              style={{ width: `${leftWidth}%` }}
-            ></div>
+      <div className="space-y-6">
+        {categories.map(cat => {
+          const leftScore = left.categories[cat.key] || 0;
+          const rightScore = right.categories[cat.key] || 0;
+          const maxScore = 5;
+          const leftPercent = (leftScore / maxScore) * 100;
+          const rightPercent = (rightScore / maxScore) * 100;
+          const winner = leftScore > rightScore ? 'left' : rightScore > leftScore ? 'right' : 'tie';
+
+          return (
+            <div key={cat.key} className="bg-white rounded-lg p-4 shadow">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{cat.icon}</span>
+                  <span className="font-semibold text-gray-700">{cat.label}</span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {leftScore.toFixed(1)} vs {rightScore.toFixed(1)}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                {/* Left destination bar */}
+                <div className="flex-1 flex justify-end">
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className={`h-full ${cat.color} transition-all duration-500 ${winner === 'left' ? 'opacity-100' : 'opacity-60'}`}
+                      style={{ width: `${leftPercent}%`, marginLeft: 'auto' }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Winner badge */}
+                <div className="w-12 text-center">
+                  {winner === 'left' && <span className="text-2xl">👈</span>}
+                  {winner === 'right' && <span className="text-2xl">👉</span>}
+                  {winner === 'tie' && <span className="text-2xl">🤝</span>}
+                </div>
+
+                {/* Right destination bar */}
+                <div className="flex-1">
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className={`h-full ${cat.color} transition-all duration-500 ${winner === 'right' ? 'opacity-100' : 'opacity-60'}`}
+                      style={{ width: `${rightPercent}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Overall winner calculation
+  const getOverallWinner = () => {
+    const left = destinations.left;
+    const right = destinations.right;
+    
+    if (!left || !right) return null;
+
+    const leftRating = parseFloat(left.rating) || 0;
+    const rightRating = parseFloat(right.rating) || 0;
+
+    if (leftRating > rightRating) return 'left';
+    if (rightRating > leftRating) return 'right';
+    return 'tie';
+  };
+
+  // Render destination card
+  const renderDestinationCard = (dest, side) => {
+    if (!dest) return <div className="text-gray-400 text-center py-8">No data</div>;
+
+    const isWinner = getOverallWinner() === side;
+
+    return (
+      <div className={`bg-white rounded-xl shadow-lg overflow-hidden transition-all ${isWinner ? 'ring-4 ring-yellow-400' : ''}`}>
+        {isWinner && (
+          <div className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-center py-2 font-bold">
+            🏆 WINNER 🏆
           </div>
-        </div>
-        <span className="text-sm font-medium w-8 text-center">vs</span>
-        <div className="w-32">
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-red-500" 
-              style={{ width: `${rightWidth}%` }}
-            ></div>
+        )}
+        
+        <div className="p-6">
+          <h2 className="text-3xl font-bold text-gray-800 mb-2">{dest.name}</h2>
+          
+          {/* Rating */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center">
+              {[...Array(5)].map((_, i) => (
+                <span key={i} className={`text-xl ${i < Math.floor(parseFloat(dest.rating)) ? 'text-yellow-400' : 'text-gray-300'}`}>
+                  ⭐
+                </span>
+              ))}
+            </div>
+            <span className="text-lg font-semibold text-gray-700">{dest.rating}</span>
+            <span className="text-sm text-gray-500">({dest.reviews} places)</span>
+          </div>
+
+          {/* Description */}
+          <p className="text-gray-600 mb-4">{dest.description}</p>
+
+          {/* Price & Weather */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="bg-blue-50 rounded-lg p-3">
+              <div className="text-xs text-blue-600 font-semibold mb-1">PRICE LEVEL</div>
+              <div className="text-2xl font-bold text-blue-700">{dest.price}</div>
+            </div>
+            <div className="bg-orange-50 rounded-lg p-3">
+              <div className="text-xs text-orange-600 font-semibold mb-1">TEMPERATURE</div>
+              <div className="text-2xl font-bold text-orange-700">{dest.avgTemp}</div>
+            </div>
+          </div>
+
+          {/* Weather Details */}
+          {dest.weather && (
+            <div className="bg-sky-50 rounded-lg p-3 mb-4">
+              <div className="text-sm font-semibold text-sky-900 mb-2">Current Weather</div>
+              <div className="flex items-center gap-2 text-sky-700">
+                <span className="text-2xl">☀️</span>
+                <span className="capitalize">{dest.weather.description}</span>
+              </div>
+              {dest.weather.humidity !== 'N/A' && (
+                <div className="text-xs text-sky-600 mt-1">
+                  Humidity: {dest.weather.humidity}% • Wind: {dest.weather.windSpeed} m/s
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Highlights */}
+          {dest.highlights && dest.highlights.length > 0 && (
+            <div className="mb-4">
+              <h3 className="font-semibold text-gray-700 mb-2">Top Attractions</h3>
+              <div className="space-y-2">
+                {dest.highlights.slice(0, 4).map((h, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm">
+                    <span className="text-green-500 mt-0.5">✓</span>
+                    <span className="text-gray-600">{h}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pros & Cons */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-semibold text-green-600 mb-2 text-sm">PROS</h4>
+              <ul className="space-y-1">
+                {(dest.pros || []).map((p, i) => (
+                  <li key={i} className="flex items-start gap-1 text-xs text-gray-600">
+                    <span className="text-green-500">✓</span>
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-red-600 mb-2 text-sm">CONS</h4>
+              <ul className="space-y-1">
+                {(dest.cons || []).map((c, i) => (
+                  <li key={i} className="flex items-start gap-1 text-xs text-gray-600">
+                    <span className="text-red-500">✗</span>
+                    <span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </div>
     );
   };
-  
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-light to-gray-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-dark mb-8">
-          Destination Duel
+        <h1 className="text-4xl font-bold text-gray-800 mb-2 text-center">
+          Destination Showdown 🌍
         </h1>
-        
-        {/* Destination Selector */}
-        <div className="bg-white rounded-xl shadow-xl overflow-hidden mb-8">
-          <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
-            <h2 className="text-2xl font-bold mb-6">Compare Destinations</h2>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">First Destination</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FaMapMarkerAlt className="text-blue-300" />
-                  </div>
-                  <select
-                    value={selectedDestinations.left}
-                    onChange={(e) => setSelectedDestinations({
-                      ...selectedDestinations,
-                      left: e.target.value
-                    })}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  >
-                    {Object.entries(mockDestinations).map(([key, dest]) => (
-                      <option key={key} value={key} disabled={key === selectedDestinations.right}>
-                        {dest.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-center py-2">
-                <div className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
-                  VS
-                </div>
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Second Destination</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FaMapMarkerAlt className="text-red-300" />
-                  </div>
-                  <select
-                    value={selectedDestinations.right}
-                    onChange={(e) => setSelectedDestinations({
-                      ...selectedDestinations,
-                      right: e.target.value
-                    })}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-300"
-                  >
-                    {Object.entries(mockDestinations).map(([key, dest]) => (
-                      <option key={key} value={key} disabled={key === selectedDestinations.left}>
-                        {dest.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        <p className="text-gray-600 text-center mb-8">Compare two destinations side-by-side</p>
+
+        {/* Input Section */}
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
+            <div className="md:col-span-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                First Destination
+              </label>
+              <input
+                type="text"
+                value={destination1Input}
+                onChange={(e) => setDestination1Input(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleCompare()}
+                placeholder="e.g., Paris, Tokyo, New York"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              />
+            </div>
+
+            <div className="flex items-center justify-center">
+              <div className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full text-white text-lg font-bold shadow-lg">
+                VS
               </div>
             </div>
+
+            <div className="md:col-span-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Second Destination
+              </label>
+              <input
+                type="text"
+                value={destination2Input}
+                onChange={(e) => setDestination2Input(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleCompare()}
+                placeholder="e.g., London, Dubai, Mumbai"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+              />
+            </div>
           </div>
-          
-          {/* Comparison Tabs */}
-          <div className="border-b border-gray-200">
-            <nav className="flex -mb-px">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                  activeTab === 'overview'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveTab('details')}
-                className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                  activeTab === 'details'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Detailed Comparison
-              </button>
-              <button
-                onClick={() => setActiveTab('proscons')}
-                className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                  activeTab === 'proscons'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Pros & Cons
-              </button>
-            </nav>
-          </div>
-          
-          {/* Tab Content */}
-          <div className="p-6">
-            {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Left Destination */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <div className="h-48 rounded-lg overflow-hidden mb-4">
-                    <img 
-                      src={leftDestination.image} 
-                      alt={leftDestination.name} 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">{leftDestination.name}</h3>
-                  <div className="flex items-center text-amber-500 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <FaStar key={i} className={`${i < Math.floor(leftDestination.rating) ? 'text-amber-500' : 'text-gray-300'}`} />
-                    ))}
-                    <span className="ml-2 text-gray-600">{leftDestination.rating} ({leftDestination.reviews} reviews)</span>
-                  </div>
-                  <p className="text-gray-600 mb-4">{leftDestination.description}</p>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <FaDollarSign className="text-gray-500 w-5 mr-2" />
-                      <span className="text-gray-700">Price Level: </span>
-                      <span className="ml-2 font-medium">{leftDestination.price}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <FaCalendarAlt className="text-gray-500 w-5 mr-2" />
-                      <span className="text-gray-700">Best Time: </span>
-                      <span className="ml-2 font-medium">{leftDestination.bestTime}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <FaCloudSun className="text-gray-500 w-5 mr-2" />
-                      <span className="text-gray-700">Avg. Temp: </span>
-                      <span className="ml-2 font-medium">{leftDestination.avgTemp}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Right Destination */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <div className="h-48 rounded-lg overflow-hidden mb-4">
-                    <img 
-                      src={rightDestination.image} 
-                      alt={rightDestination.name} 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">{rightDestination.name}</h3>
-                  <div className="flex items-center text-amber-500 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <FaStar key={i} className={`${i < Math.floor(rightDestination.rating) ? 'text-amber-500' : 'text-gray-300'}`} />
-                    ))}
-                    <span className="ml-2 text-gray-600">{rightDestination.rating} ({rightDestination.reviews} reviews)</span>
-                  </div>
-                  <p className="text-gray-600 mb-4">{rightDestination.description}</p>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <FaDollarSign className="text-gray-500 w-5 mr-2" />
-                      <span className="text-gray-700">Price Level: </span>
-                      <span className="ml-2 font-medium">{rightDestination.price}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <FaCalendarAlt className="text-gray-500 w-5 mr-2" />
-                      <span className="text-gray-700">Best Time: </span>
-                      <span className="ml-2 font-medium">{rightDestination.bestTime}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <FaCloudSun className="text-gray-500 w-5 mr-2" />
-                      <span className="text-gray-700">Avg. Temp: </span>
-                      <span className="ml-2 font-medium">{rightDestination.avgTemp}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {activeTab === 'details' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="text-center">
-                    <h4 className="text-lg font-semibold text-blue-600">{leftDestination.name}</h4>
-                  </div>
-                  <div className="text-center">
-                    <h4 className="text-lg font-semibold text-gray-600">Category</h4>
-                  </div>
-                  <div className="text-center">
-                    <h4 className="text-lg font-semibold text-red-600">{rightDestination.name}</h4>
-                  </div>
-                </div>
-                
-                {compareCategories.map((category) => (
-                  <div key={category.id} className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center">
-                        <span className="mr-2">{category.icon}</span>
-                        <span className="font-medium">{category.name}</span>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {leftDestination.categories[category.id].toFixed(1)} vs {rightDestination.categories[category.id].toFixed(1)}
-                      </div>
-                    </div>
-                    {renderRatingBars(
-                      leftDestination.categories[category.id],
-                      rightDestination.categories[category.id]
-                    )}
-                  </div>
-                ))}
-                
-                <div className="mt-8">
-                  <h4 className="text-lg font-semibold mb-4">Highlights</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <ul className="space-y-2">
-                        {leftDestination.highlights.map((highlight, i) => (
-                          <li key={i} className="flex items-center">
-                            <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mr-2">
-                              {i + 1}
-                            </span>
-                            <span>{highlight}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <ul className="space-y-2">
-                        {rightDestination.highlights.map((highlight, i) => (
-                          <li key={i} className="flex items-center">
-                            <span className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center mr-2">
-                              {i + 1}
-                            </span>
-                            <span>{highlight}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {activeTab === 'proscons' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <h3 className="text-xl font-bold mb-4 text-blue-600">{leftDestination.name}</h3>
-                  <div className="mb-6">
-                    <h4 className="font-semibold text-green-600 mb-2">Pros</h4>
-                    <ul className="space-y-2">
-                      {leftDestination.pros.map((pro, i) => (
-                        <li key={i} className="flex items-start">
-                          <span className="text-green-500 mr-2">✓</span>
-                          <span>{pro}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-red-600 mb-2">Cons</h4>
-                    <ul className="space-y-2">
-                      {leftDestination.cons.map((con, i) => (
-                        <li key={i} className="flex items-start">
-                          <span className="text-red-500 mr-2">✗</span>
-                          <span>{con}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-xl font-bold mb-4 text-red-600">{rightDestination.name}</h3>
-                  <div className="mb-6">
-                    <h4 className="font-semibold text-green-600 mb-2">Pros</h4>
-                    <ul className="space-y-2">
-                      {rightDestination.pros.map((pro, i) => (
-                        <li key={i} className="flex items-start">
-                          <span className="text-green-500 mr-2">✓</span>
-                          <span>{pro}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-red-600 mb-2">Cons</h4>
-                    <ul className="space-y-2">
-                      {rightDestination.cons.map((con, i) => (
-                        <li key={i} className="flex items-start">
-                          <span className="text-red-500 mr-2">✗</span>
-                          <span>{con}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* Recommendation */}
-        <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-xl p-6 text-white">
-          <h3 className="text-xl font-bold mb-2">Our Recommendation</h3>
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <p className="mb-4 md:mb-0 md:max-w-2xl">
-              Based on your preferences and the comparison above, we recommend 
-              <span className="font-bold"> {leftDestination.rating > rightDestination.rating ? leftDestination.name : rightDestination.name} </span>
-              as your next travel destination. It offers a better overall experience according to our analysis.
-            </p>
-            <button className="px-6 py-3 bg-white text-gray-900 font-medium rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap">
-              Plan Your Trip
+
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={handleCompare}
+              disabled={isLoading || !destination1Input.trim() || !destination2Input.trim()}
+              className="px-10 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            >
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span className="text-lg">Comparing...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-2xl">🔍</span>
+                  <span className="text-lg">Compare Destinations</span>
+                </>
+              )}
             </button>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 text-red-700 rounded-xl flex items-center gap-2">
+              <span className="text-xl">⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
         </div>
+
+        {/* Results Section */}
+        {(destinations.left || destinations.right) && (
+          <>
+            {/* Tabs */}
+            <div className="bg-white rounded-t-2xl shadow-lg overflow-hidden">
+              <div className="flex border-b">
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`flex-1 py-4 px-6 font-semibold transition ${
+                    activeTab === 'overview'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  �� Overview
+                </button>
+                <button
+                  onClick={() => setActiveTab('categories')}
+                  className={`flex-1 py-4 px-6 font-semibold transition ${
+                    activeTab === 'categories'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  📈 Categories
+                </button>
+              </div>
+
+              <div className="p-6 bg-gradient-to-br from-gray-50 to-white">
+                {activeTab === 'overview' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {renderDestinationCard(destinations.left, 'left')}
+                    {renderDestinationCard(destinations.right, 'right')}
+                  </div>
+                )}
+
+                {activeTab === 'categories' && (
+                  <div>
+                    <div className="text-center mb-8">
+                      <h2 className="text-2xl font-bold text-gray-800 mb-2">Category Comparison</h2>
+                      <p className="text-gray-600">Head-to-head comparison across different categories</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                      <div className="text-center font-bold text-lg text-gray-700">
+                        {destinations.left?.name}
+                      </div>
+                      <div className="text-center font-bold text-lg text-gray-500">
+                        Winner
+                      </div>
+                      <div className="text-center font-bold text-lg text-gray-700">
+                        {destinations.right?.name}
+                      </div>
+                    </div>
+
+                    {renderCategoryComparison()}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Overall Winner Banner */}
+            {getOverallWinner() && getOverallWinner() !== 'tie' && (
+              <div className="mt-8 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 rounded-2xl shadow-2xl p-8 text-center text-white">
+                <div className="text-6xl mb-4">🏆</div>
+                <h2 className="text-3xl font-bold mb-2">
+                  {getOverallWinner() === 'left' ? destinations.left?.name : destinations.right?.name} Wins!
+                </h2>
+                <p className="text-xl opacity-90">
+                  Based on overall ratings and available data
+                </p>
+              </div>
+            )}
+
+            {getOverallWinner() === 'tie' && (
+              <div className="mt-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl shadow-2xl p-8 text-center text-white">
+                <div className="text-6xl mb-4">🤝</div>
+                <h2 className="text-3xl font-bold mb-2">
+                  It's a Tie!
+                </h2>
+                <p className="text-xl opacity-90">
+                  Both destinations are equally amazing!
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Empty State */}
+        {!destinations.left && !destinations.right && !isLoading && (
+          <div className="text-center py-20 bg-white rounded-2xl shadow-lg">
+            <div className="text-8xl mb-6">🌍</div>
+            <h3 className="text-2xl font-bold text-gray-700 mb-2">Ready to Compare?</h3>
+            <p className="text-gray-500 text-lg">Enter two destinations above to see how they stack up!</p>
+          </div>
+        )}
       </div>
     </div>
   );

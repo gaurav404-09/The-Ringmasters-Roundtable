@@ -66,30 +66,23 @@ const RoutesPage = () => {
       }
   
       const data = await res.json();
-  
-      // ORS response validation
-     // Validate server response
-if (!data.routes || data.routes.length === 0) {
-  throw new Error("No route found");
-}
+      
+      // Check if we have valid route data
+      if (!data || !data.geometry || !data.geometry.coordinates || data.geometry.coordinates.length < 2) {
+        throw new Error("No valid route could be calculated between these points");
+      }
 
-const routeObj = data.routes[0];
+      // Convert coordinates from [lon, lat] -> [lat, lon] for Leaflet
+      const coords = data.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
 
-// Convert coordinates from [lon, lat] -> [lat, lon] for Leaflet
-const coords = routeObj.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+      setRoute({
+        distance: data.distance,       // in km
+        duration: data.duration,       // in seconds
+        steps: data.steps || [],
+        coords
+      });
 
-
-setRoute({
-  distance: routeObj.distance,       // meters
-  duration: routeObj.duration,       // seconds
-  steps: routeObj.steps.map((s) => ({
-    instruction: s.instruction,
-    distance: s.distance
-  })),
-  coords
-});
-
-setRoutesData(data.routes); // store all routes
+      setRoutesData([data]); // Store as array for consistency
 
   
     } catch (err) {
