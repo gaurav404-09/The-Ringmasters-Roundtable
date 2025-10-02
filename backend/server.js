@@ -1,38 +1,392 @@
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
-import dotenv from "dotenv";
-import * as freeDataService from './services/freeDataService.js';
-import path from 'path';
+import path from "path";
 import { fileURLToPath } from 'url';
-
+import dotenv from "dotenv";
+import { findEvents } from "./services/cohereEventService.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from the root .env file
-const envPath = path.resolve(__dirname, '../.env');
-console.log('Loading .env from:', envPath);
-const result = dotenv.config({ path: envPath });
-if (result.error) {
-  console.error('Error loading .env:', result.error);
-} else {
-  console.log('.env loaded successfully');
-  console.log('OPENWEATHER_API_KEY:', process.env.OPENWEATHER_API_KEY ? 'Set' : 'Not set');
-}
+// Load environment variables from .env in project root
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000; // Forced to 3000 as requested
 
 // --- MIDDLEWARE ---
-// Use the more specific CORS configuration and allow all necessary headers/methods
-app.use(cors({
-  origin: "http://localhost:5173", // Your frontend URL
-  credentials: true,
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173"
+];
+
+// Enable CORS pre-flight
+app.options('*', cors({
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization','x-api-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  credentials: true
+}));
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+      console.warn(msg);
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-api-key"]
 }));
 
 app.use(express.json());
+
+// --- ITINERARY ENDPOINT ---
+app.post('/api/itinerary', async (req, res) => {
+  try {
+    const { destination, days, interests, startDate, budget, travelers } = req.body;
+    
+    if (!destination || !days || !startDate) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        required: ['destination', 'days', 'startDate']
+      });
+    }
+
+    // Import freeDataService
+    const freeDataService = (await import('./services/freeDataService.js')).default;
+    
+    // Fetch real data
+    const [attractions, restaurants] = await Promise.all([
+      freeDataService.getAttractions(destination, budget),
+      freeDataService.getRestaurants(destination, budget)
+    ]);
+
+    const start = new Date(startDate);
+    const end = new Date(start);
+    end.setDate(start.getDate() + parseInt(days) - 1);
+    
+    const formatDate = (date) => {
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    };
+
+    // Generate daily itineraries with real data
+    const daysArray = [];
+    for (let i = 0; i < days; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
+      
+      // Get attractions and restaurants for this day
+      const dayAttractions = attractions.slice(i * 2, (i + 1) * 2);
+      // Get two different restaurants for lunch and dinner
+      const lunchIndex = (i * 2) % restaurants.length;
+      const dinnerIndex = (i * 2 + 1) % restaurants.length;
+      const lunchRestaurant = restaurants[lunchIndex];
+      const dinnerRestaurant = restaurants[dinnerIndex] || lunchRestaurant; // Fallback to lunch restaurant if no dinner option
+      
+      const activities = [
+        {
+          id: 1,
+          time: '08:00',
+          title: 'Breakfast at Hotel',
+          type: 'meal',
+          icon: '<FaUtensils className="text-red-500" />',
+          location: 'Hotel',
+          notes: 'Complimentary breakfast for hotel guests',
+          duration: '1h'
+        }
+      ];
+
+      // Add morning activity (attraction)
+      if (dayAttractions[0]) {
+        activities.push({
+          id: 2,
+          time: '10:00',
+          title: dayAttractions[0].name,
+          type: 'sightseeing',
+          icon: '<FaCamera className="text-blue-500" />',
+          location: dayAttractions[0].tags?.address || destination,
+          notes: dayAttractions[0].description || 'Explore this local attraction',
+          duration: '2h',
+          price: 'Free'
+        });
+      }
+
+      // Add lunch
+      if (lunchRestaurant) {
+        activities.push({
+          id: 3,
+          time: '12:30',
+          title: lunchRestaurant.name || 'Local Restaurant',
+          type: 'meal',
+          icon: '<FaUtensils className="text-red-500" />',
+          location: lunchRestaurant.tags?.address || 'Local Restaurant',
+          notes: lunchRestaurant.cuisine ? `Serving ${lunchRestaurant.cuisine}` : 'Local cuisine',
+          duration: '1h 30m',
+          price: freeDataService.getBudgetSymbol(budget)
+        });
+      }
+
+      // Add afternoon activity (attraction)
+      if (dayAttractions[1]) {
+        activities.push({
+          id: 4,
+          time: '14:30',
+          title: dayAttractions[1].name,
+          type: 'sightseeing',
+          icon: '<FaCamera className="text-blue-500" />',
+          location: dayAttractions[1].tags?.address || destination,
+          notes: dayAttractions[1].description || 'Explore this local attraction',
+          duration: '2h',
+          price: 'Free'
+        });
+      }
+
+      // Add dinner
+      if (dinnerRestaurant) {
+        activities.push({
+          id: 5,
+          time: '19:00',
+          title: dinnerRestaurant.name || 'Local Restaurant',
+          type: 'meal',
+          icon: '<FaUtensils className="text-red-500" />',
+          location: dinnerRestaurant.tags?.address || 'Local Restaurant',
+          notes: dinnerRestaurant.cuisine ? `Serving ${dinnerRestaurant.cuisine}` : 'Local cuisine',
+          duration: '2h',
+          price: freeDataService.getBudgetSymbol(budget)
+        });
+      }
+
+      daysArray.push({
+        id: i + 1,
+        date: formatDate(currentDate),
+        title: `Day ${i + 1}: ${destination} Exploration`,
+        activities
+      });
+    }
+
+    const itinerary = {
+      destination,
+      duration: `${days} days`,
+      travelDates: `${formatDate(start)} - ${formatDate(end)}`,
+      travelers: parseInt(travelers) || 1,
+      budget: freeDataService.getBudgetSymbol(budget),
+      days: daysArray
+    };
+
+    res.json(itinerary);
+  } catch (error) {
+    console.error('Error generating itinerary:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate itinerary',
+      details: error.message 
+    });
+  }
+});
+
+// --- EVENTS ENDPOINT ---
+app.get("/api/events", async (req, res) => {
+  try {
+    const { city, category, dateRange } = req.query;
+    
+    if (!city) {
+      return res.status(400).json({ error: "City parameter is required" });
+    }
+
+    console.log(`Fetching events for city: ${city}, category: ${category}, dateRange: ${dateRange}`);
+    const events = await findEvents(city, dateRange, category);
+    
+    if (!events || events.length === 0) {
+      return res.status(404).json({ 
+        error: "No events found",
+        message: `Could not find any events in ${city}${category ? ' in the ' + category + ' category' : ''}`
+      });
+    }
+    
+    res.json(events);
+  } catch (error) {
+    console.error("Error in /api/events:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch events",
+      details: error.message 
+    });
+  }
+});
+app.use(express.static(path.join(__dirname, '../build')));
+
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  if (Object.keys(req.body).length > 0) {
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
+
+// --- API ROUTES ---
+
+/**
+ * Route: GET /api/events
+ * Example: /api/events?city=Delhi&category=music&dateRange=next%20week
+ */
+app.get("/api/events", async (req, res) => {
+  try {
+    const { city, category, dateRange } = req.query;
+
+    if (!city) {
+      return res.status(400).json({ error: "City parameter is required" });
+    }
+
+    const events = await findEvents(city, dateRange, category);
+    res.json(events);
+  } catch (error) {
+    console.error("Error in /api/events:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch events",
+      details: error.message 
+    });
+  }
+});
+
+// --- ITINERARY GENERATION ENDPOINT ---
+app.post("/api/itinerary", async (req, res) => {
+  try {
+    const { destination, startDate, endDate, travelers, budget, interests } = req.body;
+    
+    if (!destination || !startDate || !endDate) {
+      return res.status(400).json({ 
+        error: "Missing required fields: destination, startDate, and endDate are required" 
+      });
+    }
+
+    // Generate a sample itinerary (you can replace this with actual logic)
+    const sampleItinerary = {
+      destination,
+      startDate,
+      endDate,
+      travelers: travelers || 1,
+      budget: budget || 'medium',
+      interests: interests || [],
+      days: [
+        {
+          date: startDate,
+          activities: [
+            {
+              type: 'attraction',
+              name: 'Local Landmark',
+              time: '10:00 AM',
+              duration: '2 hours',
+              description: 'Visit a famous local landmark',
+              location: 'City Center',
+              cost: 'Free',
+              bookingLink: '#'
+            },
+            {
+              type: 'meal',
+              name: 'Lunch at Local Restaurant',
+              time: '12:30 PM',
+              duration: '1.5 hours',
+              cuisine: 'Local Cuisine',
+              cost: '$$',
+              bookingLink: '#'
+            },
+            {
+              type: 'attraction',
+              name: 'Museum Visit',
+              time: '2:30 PM',
+              duration: '2 hours',
+              description: 'Explore local history and culture',
+              location: 'Museum District',
+              cost: '$15 per person',
+              bookingLink: '#'
+            }
+          ]
+        }
+      ]
+    };
+
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    res.json(sampleItinerary);
+  } catch (error) {
+    console.error("Error generating itinerary:", error);
+    res.status(500).json({
+      error: "Failed to generate itinerary",
+      details: error.message
+    });
+  }
+});
+
+// --- COMPARE DESTINATIONS ---
+app.post("/api/compare", async (req, res) => {
+  try {
+    const { destination1, destination2 } = req.body;
+    
+    if (!destination1 || !destination2) {
+      return res.status(400).json({ 
+        error: "Both destination1 and destination2 are required" 
+      });
+    }
+
+    // Mock response - replace with actual comparison logic
+    const comparisonData = {
+      destination1: {
+        name: destination1,
+        rating: 4.5,
+        description: `Compare ${destination1} with ${destination2}`,
+        price: "$$",
+        bestTime: "All year",
+        highlights: ["Attraction 1", "Attraction 2", "Attraction 3"],
+        categories: {
+          food: 4.2,
+          culture: 4.7,
+          adventure: 4.0,
+          nightlife: 3.8,
+          shopping: 4.1
+        },
+        pros: ["Rich culture", "Great food", "Friendly locals"],
+        cons: ["Can be crowded", "Expensive"]
+      },
+      destination2: {
+        name: destination2,
+        rating: 4.3,
+        description: `Compare ${destination2} with ${destination1}`,
+        price: "$$$",
+        bestTime: "Spring/Fall",
+        highlights: ["Sight 1", "Sight 2", "Sight 3"],
+        categories: {
+          food: 4.5,
+          culture: 4.3,
+          adventure: 4.2,
+          nightlife: 4.0,
+          shopping: 3.9
+        },
+        pros: ["Beautiful scenery", "Lots of activities", "Great public transport"],
+        cons: ["Touristy areas can be expensive", "Language barrier"]
+      }
+    };
+
+    res.json(comparisonData);
+  } catch (error) {
+    console.error("Error in /api/compare:", error);
+    res.status(500).json({ 
+      error: "Failed to compare destinations",
+      details: error.message 
+    });
+  }
+});
 
 
 // --- HELPER FUNCTIONS for Directions API ---
@@ -449,5 +803,42 @@ app.post('/api/compare', async (req, res) => {
 });
 
 
+// --- STATIC FRONTEND BUILD (for production) ---
+app.use(express.static(path.join(__dirname, "client", "dist")));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+});
+
+// --- ERROR HANDLER ---
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ 
+    error: "Something went wrong!",
+    message: err.message 
+  });
+});
+
 // --- START SERVER ---
-app.listen(PORT, () => console.log(`🚀 Caravan Compass server running at http://localhost:${PORT}`));
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3001'}`);
+});
+
+// Error handling for server
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+  } else {
+    console.error('Server error:', error);
+  }
+  process.exit(1);
+});
+
+// Log when server is closed
+process.on('SIGINT', () => {
+  console.log('Shutting down server...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});

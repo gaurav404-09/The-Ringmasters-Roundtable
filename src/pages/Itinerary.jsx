@@ -401,7 +401,8 @@ const Itinerary = () => {
   };
   
   const displayItinerary = currentItinerary || mockItineraryData;
-  const selectedDay = displayItinerary.days?.find(day => day.id === activeDay) || displayItinerary.days?.[0];
+  const days = Array.isArray(displayItinerary?.days) ? displayItinerary.days : [];
+  const selectedDay = days.find(day => day.id === activeDay) || days[0] || null;
 
   const handleItineraryGenerated = (newItinerary) => {
     setCurrentItinerary(newItinerary);
