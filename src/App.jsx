@@ -13,6 +13,7 @@ import Compare from "./pages/Compare";
 import Itinerary from "./pages/Itinerary";
 import TripSummary from "./pages/TripSummary.jsx";
 import AuthPage from './pages/AuthPage';
+import PlanTrip from './pages/PlanTrip';
 
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
             <Route path="/itinerary" element={<Itinerary />} />
             <Route path="/trip-summary" element={<TripSummary />} />
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/plan-trip" element={<PlanTrip />} />
           </Routes>
         </AnimatePresence>
       </main>

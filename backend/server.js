@@ -3,6 +3,7 @@ import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
 import * as freeDataService from './services/freeDataService.js';
+import { Orchestrator } from './mcp/Orchestrator.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -448,6 +449,14 @@ app.post('/api/compare', async (req, res) => {
   }
 });
 
-
+app.post('/api/plan-trip-mcp', async (req, res) => {
+  const orchestrator = new Orchestrator();
+  try {
+    const plan = await orchestrator.planTrip(req.body);
+    res.json(plan);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to plan trip', message: error.message });
+  }
+});
 // --- START SERVER ---
 app.listen(PORT, () => console.log(`🚀 Caravan Compass server running at http://localhost:${PORT}`));

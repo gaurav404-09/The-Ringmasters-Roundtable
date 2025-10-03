@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaUmbrellaBeach, FaRoute, FaMoneyBillWave, FaCalendarAlt, FaBalanceScale, FaClipboardList, FaUserCircle, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
+import { FaUmbrellaBeach, FaRoute, FaMoneyBillWave, FaCalendarAlt, FaBalanceScale, FaClipboardList, FaUserCircle, FaSignInAlt, FaSignOutAlt, FaRocket } from 'react-icons/fa';
 import { WiDaySunny } from 'react-icons/wi';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,6 +16,7 @@ const Navbar = () => {
     { name: 'Events', path: '/events', icon: <FaCalendarAlt className="text-lg" /> },
     { name: 'Compare', path: '/compare', icon: <FaBalanceScale className="text-lg" /> },
     { name: 'Itinerary', path: '/itinerary', icon: <FaClipboardList className="text-lg" /> },
+    { name: 'PlanTrip', path: '/plan-trip', icon: <FaRocket className="text-lg" /> },
   ];
 
   const handleLogout = async () => {
