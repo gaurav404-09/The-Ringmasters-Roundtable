@@ -1,28 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
+import AutocompleteInput from '../components/AutocompleteInput';
+import MapView from '../components/MapView';
 import ENV from "../config/env";
-const { API_BASE_URL, ORS_API_KEY } = ENV;
 import {
   FaRoute,
   FaWalking,
   FaCar,
   FaBicycle,
   FaMapMarkerAlt,
-  FaSearchLocation,
-} from "react-icons/fa";
-import MapView from "../components/MapView.jsx";
-import polyline from "@mapbox/polyline";
+  FaSearchLocation
+} from 'react-icons/fa';
 
-const formatDistance = (meters) => `${(meters / 1000).toFixed(1)} km`;
-
-const formatDuration = (seconds) => {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.round((seconds % 3600) / 60);
-  return hrs > 0 ? `${hrs} hr ${mins} mins` : `${mins} mins`;
-};
+const { API_BASE_URL, ORS_API_KEY } = ENV;
 
 const RoutesPage = () => {
-  const location = useLocation();
+  // State management
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [travelMode, setTravelMode] = useState("driving");
@@ -31,139 +24,32 @@ const RoutesPage = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  
+  // Hooks
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Handle initial load and location state from navigation
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialLoad && location.state) {
       const { from, to } = location.state;
-      
-      if (from) {
-        setOrigin(from);
-      }
-      
-      if (to) {
-        setDestination(to);
-        // If we have both origin and destination, trigger search
-        if (from) {
-          setInitialLoad(false);
-          handleSearch();
-        }
-      }
-      
-      // Clear the state to prevent re-application on re-renders
-      window.history.replaceState({}, document.title);
+      if (from) setOrigin(from);
+      if (to) setDestination(to);
       setInitialLoad(false);
     }
   }, [location.state, initialLoad]);
 
-  // Check for location state from navigation
-  React.useEffect(() => {
-    if (location.state) {
-      const { from, to } = location.state;
-      if (from) setOrigin(from);
-      if (to) setDestination(to);
-      
-      // Clear the state to prevent re-application on re-renders
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
+  // Format distance in kilometers
+  const formatDistance = (meters) => `${(meters / 1000).toFixed(1)} km`;
 
-  // Function to get current location
-  const getCurrentLocation = () => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported by your browser'));
-      } else {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            resolve(`${latitude},${longitude}`);
-          },
-          (error) => {
-            reject(error);
-          }
-        );
-      }
-    });
+  // Format duration in hours and minutes
+  const formatDuration = (seconds) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.round((seconds % 3600) / 60);
+    return hrs > 0 ? `${hrs} hr ${mins} mins` : `${mins} mins`;
   };
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-  
-    try {
-      // If origin is empty, try to get current location
-      let from = origin;
-      if (!from.trim()) {
-        try {
-          from = await getCurrentLocation();
-          setOrigin(from);
-        } catch (err) {
-          console.error('Error getting current location:', err);
-          throw new Error('Could not get your current location. Please enter a starting point.');
-        }
-      }
-      if (!destination.trim()) {
-        throw new Error("Please enter a destination");
-      }
-  
-      const params = new URLSearchParams({
-        origin: from.trim(),
-        destination: destination.trim(),
-        mode: travelMode
-      });
-  
-      const apiUrl = `${API_BASE_URL}/api/directions?${params}`;
-      console.log("Making API request to:", apiUrl);
-  
-      const res = await fetch(apiUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "x-api-key": ORS_API_KEY
-        },
-        credentials: "include"
-      });
-  
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${res.status}`);
-      }
-  
-      const data = await res.json();
-      
-      // Check if we have valid route data
-      if (!data || !data.geometry || !data.geometry.coordinates || data.geometry.coordinates.length < 2) {
-        throw new Error("No valid route could be calculated between these points");
-      }
-
-      // Convert coordinates from [lon, lat] -> [lat, lon] for Leaflet
-      const coords = data.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
-
-      setRoute({
-        distance: data.distance,       // in km
-        duration: data.duration,       // in seconds
-        steps: data.steps || [],
-        coords
-      });
-
-      setRoutesData([data]); // Store as array for consistency
-
-  
-    } catch (err) {
-      console.error("Error fetching directions:", err);
-      setError(err.message || "Error fetching directions. Please try again later.");
-      setRoute(null);
-      setRoutesData(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-
+  // Get transport icon based on travel mode
   const getTransportIcon = (mode) => {
     switch (mode) {
       case "walking":
@@ -177,10 +63,70 @@ const RoutesPage = () => {
     }
   };
 
+  // Handle search form submission
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      if (!origin.trim() || !destination.trim()) {
+        throw new Error("Please enter both origin and destination");
+      }
+
+      const params = new URLSearchParams({
+        origin: origin.trim(),
+        destination: destination.trim(),
+        mode: travelMode
+      });
+
+      const apiUrl = `${API_BASE_URL}/api/directions?${params}`;
+      const res = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "x-api-key": ORS_API_KEY
+        },
+        credentials: "include"
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      
+      if (!data || !data.geometry?.coordinates || data.geometry.coordinates.length < 2) {
+        throw new Error("No valid route could be calculated between these points");
+      }
+
+      // Convert coordinates from [lon, lat] -> [lat, lon] for Leaflet
+      const coords = data.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+
+      setRoute({
+        distance: data.distance,
+        duration: data.duration,
+        steps: data.steps || [],
+        coords
+      });
+
+      setRoutesData([data]);
+    } catch (err) {
+      console.error("Error fetching directions:", err);
+      setError(err.message || "Error fetching directions. Please try again later.");
+      setRoute(null);
+      setRoutesData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-light to-gray-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-dark mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
           Trailblazer's Pathways
         </h1>
 
@@ -190,29 +136,25 @@ const RoutesPage = () => {
             <form onSubmit={handleSearch} className="space-y-4">
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-20">
                     <FaMapMarkerAlt className="text-green-300" />
                   </div>
-                  <input
-                    type="text"
+                  <AutocompleteInput
                     value={origin}
-                    onChange={(e) => setOrigin(e.target.value)}
+                    onChange={setOrigin}
                     placeholder="Starting point"
-                    className="w-full pl-10 pr-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-300"
-                    required
+                    className="pl-10"
                   />
                 </div>
                 <div className="flex-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-20">
                     <FaSearchLocation className="text-green-300" />
                   </div>
-                  <input
-                    type="text"
+                  <AutocompleteInput
                     value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
+                    onChange={setDestination}
                     placeholder="Destination"
-                    className="w-full pl-10 pr-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-300"
-                    required
+                    className="pl-10"
                   />
                 </div>
               </div>
@@ -246,38 +188,47 @@ const RoutesPage = () => {
           </div>
 
           <div className="p-6">
-            {/* Loading & Error Messages */}
             {loading && <p className="text-blue-500 mb-4">Loading...</p>}
             {error && <p className="text-red-500 mb-4">{error}</p>}
-            {/* Map Placeholder */}
+            
             <MapView
               routeCoords={route?.coords}
               origin={origin}
               destination={destination}
             />
-            {/* Route Summary */}
+            
             {route && (
-              <div className="bg-green-50 p-4 rounded-lg mb-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-semibold text-lg">Recommended Route</h3>
-                    <p className="text-sm text-gray-600">
-                      Based on current conditions
+              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+                  <div className="mb-4 md:mb-0">
+                    <h3 className="font-bold text-xl text-gray-800">Recommended Route</h3>
+                    <p className="text-gray-600 mt-1">
+                      Based on current traffic conditions
                     </p>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold">
-                      {formatDuration(route.duration)}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {formatDistance(route.distance)}
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-100 w-full md:w-auto">
+                    <div className="flex items-center justify-between">
+                      <div className="mr-6">
+                        <p className="text-sm text-gray-600">Duration</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {formatDuration(route.duration)}
+                        </p>
+                      </div>
+                      <div className="h-10 w-px bg-gray-200 mx-4"></div>
+                      <div>
+                        <p className="text-sm text-gray-600">Distance</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {formatDistance(route.distance)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
+            
             {route && (
-              <div className="mt-6 text-center">
+              <div className="mt-8 text-center">
                 <button
                   onClick={() =>
                     navigate("/trip-summary", {
@@ -286,44 +237,51 @@ const RoutesPage = () => {
                           origin,
                           destination,
                           coords: route.coords,
-                          distance: route.distance, // meters
-                          duration: route.duration, // seconds
+                          distance: route.distance,
+                          duration: route.duration,
                           steps: route.steps,
                         },
                       },
                     })
                   }
-                  className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-500 transition-colors"
+                  className="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                 >
-                  View Trip Summary
+                  View Full Trip Summary →
                 </button>
               </div>
             )}
 
-            {/* Step-by-step Directions */}
             {route && (
-              <div className="mb-8">
-                <h3 className="text-xl font-semibold mb-4">
+              <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 className="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">
                   Step-by-step Directions
                 </h3>
                 <div className="space-y-4">
                   {route.steps.map((step, index) => (
-                    <div key={index} className="flex items-start">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-3 mt-1">
+                    <div 
+                      key={index} 
+                      className="flex items-start p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-700 font-medium flex items-center justify-center mr-4 mt-0.5">
                         {index + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium">{step.instruction}</p>
-                        <p className="text-sm text-gray-500">
-                          {formatDistance(step.distance)}
-                        </p>
+                        <p className="font-medium text-gray-900">{step.instruction}</p>
+                        <div className="mt-1 flex items-center text-sm text-gray-500">
+                          <span className="inline-flex items-center">
+                            <svg className="mr-1.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {formatDistance(step.distance)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            {/* Alternative Routes */}
+            
             {routesData?.length > 1 && (
               <div>
                 <h3 className="text-xl font-semibold mb-4">
@@ -354,7 +312,7 @@ const RoutesPage = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-xl p-6">
-          <h3 className="text-xl font-bold text-dark mb-4">Travel Tips</h3>
+          <h3 className="text-xl font-bold text-gray-900 mb-4">Travel Tips</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex items-start">
               <div className="bg-green-100 p-3 rounded-full mr-4">
@@ -367,17 +325,6 @@ const RoutesPage = () => {
                 </p>
               </div>
             </div>
-            {/* <div className="flex items-start">
-              <div className="bg-blue-100 p-3 rounded-full mr-4">
-                <FaTrain className="text-xl text-blue-600" />
-              </div>
-              <div>
-                <h4 className="font-semibold">Public Transport</h4>
-                <p className="text-sm text-gray-600">
-                  Consider taking the train for a more relaxing journey.
-                </p>
-              </div>
-            </div> */}
           </div>
         </div>
       </div>
