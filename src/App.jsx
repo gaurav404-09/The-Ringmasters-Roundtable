@@ -34,8 +34,8 @@ function App() {
             <Route path="/compare" element={<Compare />} />
             <Route path="/itinerary" element={<Itinerary />} />
             <Route path="/trip-summary" element={<TripSummary />} />
+            <Route path="/planner" element={<PlanTrip />} />
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/plan-trip" element={<PlanTrip />} />
           </Routes>
         </AnimatePresence>
       </main>

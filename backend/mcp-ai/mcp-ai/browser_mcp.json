@@ -1,0 +1,18 @@
+{
+    "mcpServers": {
+      "weather": {
+      "command": "npx",
+      "args": ["-y", "@timlukahorstmann/mcp-weather"],
+      "env": {
+        "ACCUWEATHER_API_KEY": "zpka_d45a3b7092d840769c82eca9dbb2bb64_24f7d9f1"
+      }
+    },
+ "osm-mcp-server": {
+    "command": "uvx",
+    "args": [
+      "osm-mcp-server"
+    ]
+  }
+    }
+  }
+  

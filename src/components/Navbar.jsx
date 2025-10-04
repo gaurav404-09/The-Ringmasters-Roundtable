@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaUmbrellaBeach, FaRoute, FaMoneyBillWave, FaCalendarAlt, FaBalanceScale, FaClipboardList, FaUserCircle, FaSignInAlt, FaSignOutAlt, FaRocket } from 'react-icons/fa';
+import { FaUmbrellaBeach, FaRoute, FaMoneyBillWave, FaCalendarAlt, FaBalanceScale, FaClipboardList, FaUserCircle, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
 import { WiDaySunny } from 'react-icons/wi';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,7 +16,6 @@ const Navbar = () => {
     { name: 'Events', path: '/events', icon: <FaCalendarAlt className="text-lg" /> },
     { name: 'Compare', path: '/compare', icon: <FaBalanceScale className="text-lg" /> },
     { name: 'Itinerary', path: '/itinerary', icon: <FaClipboardList className="text-lg" /> },
-    { name: 'PlanTrip', path: '/plan-trip', icon: <FaRocket className="text-lg" /> },
   ];
 
   const handleLogout = async () => {
@@ -83,7 +82,14 @@ const Navbar = () => {
           </div>
 
           {/* User/Auth Section */}
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center space-x-4">
+            <Link
+              to="/planner"
+              className="px-4 py-2 rounded-md text-sm font-medium bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 hover:from-yellow-300 hover:to-yellow-400 transition-all duration-200 flex items-center space-x-1"
+            >
+              <FaRoute className="h-4 w-4" />
+              <span>Plan Trip</span>
+            </Link>
             {user ? (
               <div className="ml-4 flex items-center md:ml-6">
                 <div className="relative">
@@ -94,7 +100,7 @@ const Navbar = () => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="ml-4 flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-white/10 transition-colors duration-200"
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-white/10 transition-colors duration-200"
                 >
                   <FaSignOutAlt className="h-4 w-4" />
                   <span>Logout</span>

@@ -1,44 +1,156 @@
+// server.js
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
 import * as freeDataService from './services/freeDataService.js';
-import { Orchestrator } from './mcp/Orchestrator.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import http from 'http';
+import { Server } from 'socket.io';
+import amqp from 'amqplib';
+import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load environment variables from the root .env file
 const envPath = path.resolve(__dirname, '../.env');
-console.log('Loading .env from:', envPath);
-const result = dotenv.config({ path: envPath });
-if (result.error) {
-  console.error('Error loading .env:', result.error);
-} else {
-  console.log('.env loaded successfully');
-  console.log('OPENWEATHER_API_KEY:', process.env.OPENWEATHER_API_KEY ? 'Set' : 'Not set');
-}
+dotenv.config({ path: envPath });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app); // Create HTTP server from Express app
+
+// --- SOCKET.IO CONFIGURATION ---
+const io = new Server(server, {
+  path: "/socket.io/",
+  cors: {
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    methods: ["GET", "POST", "OPTIONS"],
+    credentials: true
+  },
+  // Force long polling first, then upgrade to WebSocket
+  transports: ['polling', 'websocket'],
+  // Enable compatibility with older Socket.IO clients
+  allowEIO3: true
+});
+
+// Handle WebSocket connection errors
+io.engine.on("connection_error", (err) => {
+  console.error('Socket.IO connection error:', err.message);
+  console.error('Error details:', err.description);
+  console.error('Error context:', err.context);
+});
+
+const PORT = process.env.PORT || 3000; // Running backend on port 3000
 
 // --- MIDDLEWARE ---
-// Use the more specific CORS configuration and allow all necessary headers/methods
-app.use(cors({
-  origin: "http://localhost:5173", // Your frontend URL
+// Configure CORS for both HTTP and WebSocket
+const corsOptions = {
+  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization','x-api-key']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', websocket: io.engine.clientsCount });
+});
 
 app.use(express.json());
 
 
-// --- HELPER FUNCTIONS for Directions API ---
+// --- RABBITMQ & WEBSOCKET LOGIC (MCP Integration) ---
 
-// Helper function to geocode a location using Nominatim
+const RABBITMQ_URL = 'amqp://localhost';
+let amqpChannel = null;
+const tripSubscribers = new Map(); // Maps trip_id to a client's socket.id
+
+async function connectRabbitMQ() {
+    try {
+        const connection = await amqp.connect(RABBITMQ_URL);
+        const channel = await connection.createChannel();
+        console.log(' [Server] Connected to RabbitMQ');
+
+        // Ensure all necessary queues exist
+        await channel.assertQueue('trip_requests_queue', { durable: true });
+        await channel.assertQueue('trip_status_queue', { durable: true });
+        await channel.assertQueue('trip_results_queue', { durable: true });
+
+        // Listener for STATUS updates from the Python orchestrator
+        channel.consume('trip_status_queue', (msg) => {
+            if (msg !== null) {
+                const status = JSON.parse(msg.content.toString());
+                if (status.client_sid) {
+                    io.to(status.client_sid).emit('status_update', { message: status.message });
+                }
+                channel.ack(msg);
+            }
+        });
+        
+        // Listener for FINAL results from the Python orchestrator
+        channel.consume('trip_results_queue', (msg) => {
+            if (msg !== null) {
+                const result = JSON.parse(msg.content.toString());
+                const { trip_id } = result;
+                console.log(` [Server] Received final result for trip ${trip_id}`);
+                if (tripSubscribers.has(trip_id)) {
+                    const clientSid = tripSubscribers.get(trip_id);
+                    io.to(clientSid).emit('trip_result', result);
+                    tripSubscribers.delete(trip_id); // Clean up
+                }
+                channel.ack(msg);
+            }
+        });
+        
+        amqpChannel = channel;
+    } catch (error) {
+        console.error(' [Server] RabbitMQ connection error. Retrying...', error);
+        setTimeout(connectRabbitMQ, 5000);
+    }
+}
+
+io.on('connection', (socket) => {
+    console.log(` [Server] Client connected: ${socket.id}`);
+
+    // This is the new endpoint for planning a trip with the agent system
+    socket.on('plan_trip', (data) => {
+        if (!amqpChannel) {
+            return socket.emit('status_update', { message: 'Error: Backend is not ready.' });
+        }
+        
+        const trip_id = uuidv4();
+        tripSubscribers.set(trip_id, socket.id);
+
+        const message = {
+            trip_id,
+            client_sid: socket.id, 
+            payload: {
+                start_city: data.start_city,
+                end_city: data.end_city,
+                num_days: parseInt(data.num_days, 10),
+            },
+        };
+
+        // Send the job to the Python orchestrator
+        amqpChannel.sendToQueue('trip_requests_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
+        
+        console.log(` [Server] Sent job for trip ${trip_id} to orchestrator.`);
+        socket.emit('status_update', { message: `Trip request sent for ${data.start_city} to ${data.end_city}.` });
+    });
+
+    socket.on('disconnect', () => {
+        console.log(` [Server] Client disconnected: ${socket.id}`);
+    });
+});
+
+
 const geocode = async (place) => {
   try {
     const response = await fetch(
@@ -459,4 +571,24 @@ app.post('/api/plan-trip-mcp', async (req, res) => {
   }
 });
 // --- START SERVER ---
-app.listen(PORT, () => console.log(`🚀 Caravan Compass server running at http://localhost:${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on http://0.0.0.0:${PORT}`);
+  console.log(`WebSocket server is running on ws://0.0.0.0:${PORT}/socket.io/`);
+  
+  // Log when the server is ready
+  console.log('Server is ready to accept connections');
+  
+  // Connect to RabbitMQ
+  connectRabbitMQ().catch(console.error);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
