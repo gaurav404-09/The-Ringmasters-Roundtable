@@ -7,7 +7,6 @@ import { findEvents } from "./services/cohereEventService.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from .env in project root
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const app = express();
@@ -21,15 +20,8 @@ const allowedOrigins = [
   "http://127.0.0.1:5173"
 ];
 
-// Enable CORS pre-flight
-app.options('*', cors({
-  origin: allowedOrigins,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
-  credentials: true
-}));
-
-app.use(cors({
+// CORS configuration
+const corsOptions = {
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
@@ -42,14 +34,42 @@ app.use(cors({
     return callback(null, true);
   },
   credentials: true,
-  methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-api-key"]
-}));
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "x-api-key",
+    "Access-Control-Allow-Origin",
+    "Access-Control-Allow-Headers"
+  ],
+  exposedHeaders: [
+    "Content-Length", 
+    "X-Foo", 
+    "X-Bar"
+  ]
+};
+
+// Enable CORS for all routes
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
 // --- ITINERARY ENDPOINT ---
 app.post('/api/itinerary', async (req, res) => {
+  // Set CORS headers
+  res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   try {
     const { destination, days, interests, startDate, budget, travelers } = req.body;
     

@@ -1,15 +1,96 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ENV from '../config/env';
 
 const { API_BASE_URL } = ENV;
-import { FaCalendarAlt, FaMapMarkerAlt, FaUtensils, FaBed, FaPlane, FaWalking, FaTrain, FaBus, FaShip, FaShoppingBag, FaLandmark, FaCamera, FaEllipsisH, FaDollarSign, FaPlus } from 'react-icons/fa';
+import { FaCalendarAlt, FaMapMarkerAlt, FaUtensils, FaBed, FaPlane, FaWalking, FaTrain, FaBus, FaShip, FaShoppingBag, FaLandmark, FaCamera, FaEllipsisH, FaDollarSign, FaPlus, FaRoute } from 'react-icons/fa';
 import { BsSunrise, BsSunset } from 'react-icons/bs';
 import ItineraryGenerator from '../components/ItineraryGenerator';
+import { toast } from 'react-toastify';
 
 const Itinerary = () => {
+  const navigate = useNavigate();
   const [activeDay, setActiveDay] = useState(1);
   const [currentItinerary, setCurrentItinerary] = useState(null);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState(null);
+
+  // Get current location when component mounts
+  React.useEffect(() => {
+    const getLocation = async () => {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error('Geolocation is not supported by your browser'));
+          } else {
+            navigator.geolocation.getCurrentPosition(resolve, reject);
+          }
+        });
+        
+        const { latitude, longitude } = position.coords;
+        setCurrentLocation(`${latitude},${longitude}`);
+      } catch (error) {
+        console.error('Error getting current location:', error);
+        toast.warn('Could not get your current location. You can still get directions by entering your starting point manually.');
+      }
+    };
+
+    getLocation();
+  }, []);
+
+  const handleGetDirections = async () => {
+    if (!currentItinerary?.destination) return;
+    
+    // If we already have the current location, use it
+    if (currentLocation) {
+      navigate('/routes', {
+        state: {
+          from: currentLocation,
+          to: currentItinerary.destination
+        }
+      });
+      return;
+    }
+    
+    // Otherwise, try to get the current location
+    setIsGettingLocation(true);
+    
+    try {
+      const position = await new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation is not supported by your browser'));
+        } else {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        }
+      });
+      
+      const { latitude, longitude } = position.coords;
+      const locationString = `${latitude},${longitude}`;
+      setCurrentLocation(locationString);
+      
+      // Navigate to Routes page with location data
+      navigate('/routes', {
+        state: {
+          from: locationString,
+          to: currentItinerary.destination
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error getting location:', error);
+      toast.error('Could not get your location. You can still get directions by entering your starting point manually.');
+      
+      // If location access is denied, still navigate but with only the destination
+      navigate('/routes', {
+        state: {
+          to: currentItinerary.destination
+        }
+      });
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
   
   // Mock itinerary data (fallback only)
   const mockItineraryData = {
@@ -480,16 +561,27 @@ const Itinerary = () => {
               {displayItinerary.travelDates} • {displayItinerary.duration} • {displayItinerary.travelers} {displayItinerary.travelers > 1 ? 'Travelers' : 'Traveler'}
             </p>
           </div>
-          <div className="flex gap-3 mt-4 md:mt-0">
+          <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
+            <button 
+              onClick={handleGetDirections}
+              disabled={isGettingLocation}
+              className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <FaRoute className="text-sm" />
+              {isGettingLocation ? 'Getting Directions...' : 'Get Directions'}
+            </button>
             <button 
               onClick={() => setShowGenerator(true)}
-              className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
             >
               <FaPlus className="text-sm" />
-              Create New Itinerary
+              New Itinerary
             </button>
-            <button className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
-              Print Itinerary
+            <button className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print
             </button>
           </div>
         </div>

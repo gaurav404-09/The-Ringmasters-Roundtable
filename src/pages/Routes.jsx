@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from 'react-router-dom';
 import ENV from "../config/env";
 const { API_BASE_URL, ORS_API_KEY } = ENV;
 import {
@@ -22,6 +22,7 @@ const formatDuration = (seconds) => {
 };
 
 const RoutesPage = () => {
+  const location = useLocation();
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [travelMode, setTravelMode] = useState("driving");
@@ -29,7 +30,63 @@ const RoutesPage = () => {
   const [routesData, setRoutesData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const navigate = useNavigate();
+
+  // Handle initial load and location state from navigation
+  React.useEffect(() => {
+    if (initialLoad && location.state) {
+      const { from, to } = location.state;
+      
+      if (from) {
+        setOrigin(from);
+      }
+      
+      if (to) {
+        setDestination(to);
+        // If we have both origin and destination, trigger search
+        if (from) {
+          setInitialLoad(false);
+          handleSearch();
+        }
+      }
+      
+      // Clear the state to prevent re-application on re-renders
+      window.history.replaceState({}, document.title);
+      setInitialLoad(false);
+    }
+  }, [location.state, initialLoad]);
+
+  // Check for location state from navigation
+  React.useEffect(() => {
+    if (location.state) {
+      const { from, to } = location.state;
+      if (from) setOrigin(from);
+      if (to) setDestination(to);
+      
+      // Clear the state to prevent re-application on re-renders
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Function to get current location
+  const getCurrentLocation = () => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported by your browser'));
+      } else {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            resolve(`${latitude},${longitude}`);
+          },
+          (error) => {
+            reject(error);
+          }
+        );
+      }
+    });
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -37,12 +94,23 @@ const RoutesPage = () => {
     setLoading(true);
   
     try {
-      if (!origin.trim() || !destination.trim()) {
-        throw new Error("Please enter both origin and destination");
+      // If origin is empty, try to get current location
+      let from = origin;
+      if (!from.trim()) {
+        try {
+          from = await getCurrentLocation();
+          setOrigin(from);
+        } catch (err) {
+          console.error('Error getting current location:', err);
+          throw new Error('Could not get your current location. Please enter a starting point.');
+        }
+      }
+      if (!destination.trim()) {
+        throw new Error("Please enter a destination");
       }
   
       const params = new URLSearchParams({
-        origin: origin.trim(),
+        origin: from.trim(),
         destination: destination.trim(),
         mode: travelMode
       });
