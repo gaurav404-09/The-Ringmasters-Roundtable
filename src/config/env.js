@@ -6,8 +6,9 @@ const ENV = {
   COHERE_API_KEY: import.meta.env.VITE_COHERE_API_KEY || '',
   
   // API Endpoints
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
   WEATHER_API: 'https://api.openweathermap.org/data/2.5/weather',
+  WS_URL: import.meta.env.VITE_WS_URL || 'ws://localhost:3000',
   
   // Environment
   IS_DEVELOPMENT: import.meta.env.DEV || process.env.NODE_ENV === 'development',

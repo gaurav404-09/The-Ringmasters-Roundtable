@@ -14,6 +14,7 @@ class FreeDataService {
 
   // Get coordinates for a destination
   async getCoordinates(destination) {
+    console.log(`[FreeDataService] Getting coordinates for: ${destination}`);
     try {
       const response = await axios.get(`${this.nominatimBaseUrl}/search`, {
         params: {
@@ -31,6 +32,11 @@ class FreeDataService {
 
       if (response.data && response.data.length > 0) {
         const result = response.data[0];
+        console.log(`[FreeDataService] Found coordinates for ${destination}:`, { 
+          lat: result.lat, 
+          lon: result.lon,
+          name: result.display_name 
+        });
         return {
           lat: parseFloat(result.lat),
           lon: parseFloat(result.lon),
@@ -38,52 +44,77 @@ class FreeDataService {
         };
       }
       
-      throw new Error('No results found');
+      console.warn(`[FreeDataService] No coordinates found for: ${destination}`);
+      throw new Error('No results found for the specified location');
     } catch (error) {
-      console.error(`Error getting coordinates for ${destination}:`, error.message);
-      throw error;
+      console.error(`[FreeDataService] Error getting coordinates for ${destination}:`, error.message);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Status:', error.response.status);
+      }
     }
   }
 
   // Query Overpass API
   async queryOverpass(query) {
+    console.log('[FreeDataService] Sending query to Overpass API');
     try {
       const response = await axios.post(this.overpassBaseUrl, query, {
-        headers: {
+        headers: { 
           'Content-Type': 'text/plain',
-          'User-Agent': 'TravelApp/1.0'
+          'User-Agent': 'TravelApp/1.0 (https://yourapp.com; contact@yourapp.com)'
         },
         timeout: 30000
       });
-
-      if (response.data?.elements) {
-        return response.data.elements;
+      
+      if (!response.data || !Array.isArray(response.data.elements)) {
+        console.warn('[FreeDataService] Unexpected response format from Overpass:', response.data);
+        return [];
       }
-      return [];
+      
+      console.log(`[FreeDataService] Received ${response.data.elements.length} elements from Overpass`);
+      return response.data.elements;
     } catch (error) {
-      console.error('Overpass API error:', error.message);
-      return [];
+      console.error('[FreeDataService] Overpass API error:', error.message);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+      } else if (error.request) {
+        console.error('No response received from Overpass API');
+      }
+      throw error;
     }
   }
 
   // Get attractions for a destination
   async getAttractions(destination, budget = 'medium') {
+    console.log(`[FreeDataService] Fetching attractions for: ${destination}`);
     try {
       const coords = await this.getCoordinates(destination);
       const { lat, lon } = coords;
-      
-      const query = `[out:json][timeout:30];
+      console.log(`[FreeDataService] Using coordinates:`, { lat, lon });
+
+      const query = `[out:json][timeout:25];
 (
   node["tourism"](around:5000,${lat},${lon});
+  way["tourism"](around:5000,${lat},${lon});
+  relation["tourism"](around:5000,${lat},${lon});
   node["historic"](around:5000,${lat},${lon});
-  node["natural"~"beach|waterfall|peak"](around:5000,${lat},${lon});
-  node["leisure"~"park|garden"](around:5000,${lat},${lon});
+  way["historic"](around:5000,${lat},${lon});
+  relation["historic"](around:5000,${lat},${lon});
+  node["leisure"]["leisure"!~"park|pitch|sports_centre|stadium"](around:5000,${lat},${lon});
+  way["leisure"]["leisure"!~"park|pitch|sports_centre|stadium"](around:5000,${lat},${lon});
+  relation["leisure"]["leisure"!~"park|pitch|sports_centre|stadium"](around:5000,${lat},${lon});
 );
-out body 50;`;
+out body 50;
+>;
+out skel qt;`;
 
+      console.log(`[FreeDataService] Executing Overpass query for attractions`);
       const elements = await this.queryOverpass(query);
+      console.log(`[FreeDataService] Received ${elements.length} elements from Overpass`);
       
-      return elements
+      const attractions = elements
         .filter(el => el.tags?.name)
         .map(el => ({
           id: el.id,
@@ -94,40 +125,64 @@ out body 50;`;
           tags: el.tags
         }))
         .slice(0, 50);
+
+      console.log(`[FreeDataService] Found ${attractions.length} attractions for ${destination}`);
+      return attractions;
     } catch (error) {
-      console.error('Error fetching attractions:', error.message);
+      console.error(`[FreeDataService] Error fetching attractions for ${destination}:`, error);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Status code:', error.response.status);
+      }
       return [];
     }
   }
 
-  // Get restaurants for a destination
   async getRestaurants(destination, budget = 'medium') {
+    console.log(`[FreeDataService] Fetching restaurants for: ${destination}`);
     try {
       const coords = await this.getCoordinates(destination);
       const { lat, lon } = coords;
+      console.log(`[FreeDataService] Using coordinates:`, { lat, lon });
 
-      const query = `[out:json][timeout:20];
+      const query = `[out:json][timeout:25];
 (
   node["amenity"="restaurant"](around:3000,${lat},${lon});
   node["amenity"="cafe"](around:3000,${lat},${lon});
+  way["amenity"="restaurant"](around:3000,${lat},${lon});
+  way["amenity"="cafe"](around:3000,${lat},${lon});
 );
-out body 15;`;
+out body 20;
+>;
+out skel qt;`;
 
+      console.log(`[FreeDataService] Executing Overpass query for restaurants`);
       const elements = await this.queryOverpass(query);
+      console.log(`[FreeDataService] Received ${elements.length} elements from Overpass`);
       
-      return elements
+      const restaurants = elements
         .filter(el => el.tags?.name)
         .map(el => ({
           id: el.id,
-          name: el.tags.name,
-          cuisine: el.tags.cuisine || 'Local',
-          description: `Serving ${el.tags.cuisine || 'local'} cuisine`,
-          coordinates: { lat: el.lat, lon: el.lon },
-          priceLevel: this.getPriceLevel(el.tags, budget)
+          name: el.tags.name || 'Unnamed Restaurant',
+          cuisine: el.tags.cuisine ? el.tags.cuisine.split(';')[0] : 'Local',
+          description: el.tags.cuisine ? `Serving ${el.tags.cuisine.split(';').join(', ')} cuisine` : 'Local cuisine',
+          coordinates: { lat: el.lat || lat, lon: el.lon || lon },
+          priceLevel: this.getPriceLevel(el.tags, budget),
+          address: el.tags['addr:street'] ? 
+            `${el.tags['addr:street']}${el.tags['addr:housenumber'] ? ' ' + el.tags['addr:housenumber'] : ''}` : 
+            'Address not available'
         }))
-        .slice(0, 10);
+        .slice(0, 15);
+
+      console.log(`[FreeDataService] Found ${restaurants.length} restaurants for ${destination}`);
+      return restaurants;
     } catch (error) {
-      console.error('Error fetching restaurants:', error.message);
+      console.error(`[FreeDataService] Error fetching restaurants for ${destination}:`, error);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Status code:', error.response.status);
+      }
       return [];
     }
   }
@@ -166,23 +221,17 @@ out body 10;`;
     }
   }
 
-  // Get weather for a destination
+  // Get weather data
   async getWeather(destination) {
-    console.log('getWeather called for', destination, '- API Key:', this.weatherApiKey ? 'Present (len:' + this.weatherApiKey.length + ')' : 'Missing');
-    if (!this.weatherApiKey) {
-      console.log('Weather API key is missing, returning dummy data');
-      return {
-        temp: 25,
-        description: 'Weather data unavailable',
-        humidity: 'N/A',
-        windSpeed: 'N/A'
-      };
-    }
-
+    console.log(`[FreeDataService] Getting weather for: ${destination}`);
     try {
-      const coords = await this.getCoordinates(destination);
-      const { lat, lon } = coords;
+      if (!this.weatherApiKey) {
+        console.error('[FreeDataService] OpenWeatherMap API key is not configured');
+        return null;
+      }
 
+      const { lat, lon } = await this.getCoordinates(destination);
+      
       const response = await axios.get(`${this.weatherBaseUrl}/weather`, {
         params: {
           lat,
@@ -190,26 +239,40 @@ out body 10;`;
           appid: this.weatherApiKey,
           units: 'metric'
         },
-        timeout: 5000
+        timeout: 10000,
+        validateStatus: (status) => status < 500 // Don't throw for 4xx errors
       });
 
-      return {
-        temp: Math.round(response.data.main.temp),
-        description: response.data.weather[0].description,
-        humidity: response.data.main.humidity,
-        windSpeed: response.data.wind.speed
-      };
+      if (response.status === 200 && response.data) {
+        console.log(`[FreeDataService] Weather data for ${destination}:`, {
+          temp: response.data.main.temp,
+          description: response.data.weather[0].description
+        });
+        return {
+          temp: response.data.main.temp,
+          description: response.data.weather[0].description,
+          icon: response.data.weather[0].icon,
+          humidity: response.data.main.humidity,
+          windSpeed: response.data.wind.speed
+        };
+      } else if (response.status === 401) {
+        console.error('[FreeDataService] Invalid OpenWeatherMap API key');
+      } else if (response.status === 404) {
+        console.warn(`[FreeDataService] No weather data found for: ${destination}`);
+      } else {
+        console.error(`[FreeDataService] Weather API error: ${response.status}`, response.data);
+      }
+      
+      return null; // Return null instead of throwing to prevent breaking the comparison
     } catch (error) {
-      console.error('Error fetching weather:', error.message);
-      return {
-        temp: 25,
-        description: 'Weather data unavailable',
-        humidity: 'N/A',
-        windSpeed: 'N/A'
-      };
+      console.error(`[FreeDataService] Error getting weather for ${destination}:`, error.message);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Status:', error.response.status);
+      }
+      return null;
     }
   }
-
   // Helper: Generate description
   generateDescription(tags) {
     const name = tags.name || 'Attraction';
