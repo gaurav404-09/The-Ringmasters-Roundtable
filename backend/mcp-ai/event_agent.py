@@ -62,7 +62,7 @@ class EventAgent:
         ]
         """
         try:
-            response = self.client.chat(model="command-r", message=prompt, temperature=0.6)
+            response = self.client.chat(model="command", message=prompt, temperature=0.6)
             json_text = re.search(r'\[.*\]', response.text, re.DOTALL)
             
             if not json_text:

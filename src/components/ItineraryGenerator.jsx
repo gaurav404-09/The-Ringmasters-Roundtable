@@ -51,38 +51,59 @@ const ItineraryGenerator = ({ onItineraryGenerated }) => {
     setIsGenerating(true);
     
     try {
+      const requestBody = {
+        destination: formData.destination,
+        days: Math.ceil((new Date(formData.endDate) - new Date(formData.startDate)) / (1000 * 60 * 60 * 24)) + 1,
+        interests: formData.interests,
+        startDate: formData.startDate,
+        budget: formData.budget,
+        travelers: formData.travelers
+      };
+
+      console.log('Sending request to:', `${API_BASE_URL}/api/itinerary`);
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(`${API_BASE_URL}/api/itinerary`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          destination: formData.destination,
-          days: Math.ceil((new Date(formData.endDate) - new Date(formData.startDate)) / (1000 * 60 * 60 * 24)) + 1,
-          interests: formData.interests,
-          startDate: formData.startDate,
-          budget: formData.budget,
-          travelers: formData.travelers
-        })
+        credentials: 'include', // Include cookies and HTTP authentication data
+        body: JSON.stringify(requestBody)
       });
       
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate itinerary');
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.error('Error response:', errorData);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          const text = await response.text();
+          console.error('Error parsing error response:', text);
+          errorMessage = `Failed to parse error response: ${text}`;
+        }
+        throw new Error(errorMessage);
       }
       
       const itinerary = await response.json();
+      console.log('Received itinerary:', itinerary);
       onItineraryGenerated(itinerary);
     } catch (error) {
       console.error('Error generating itinerary:', error);
       
-      alert(`Failed to generate itinerary: ${error.message}\n\nPlease check:\n- Your destination name is correct\n- Backend server is running on port 5000\n- Internet connection is stable`);
+      const errorDetails = `Error: ${error.message}\n\nPlease check:\n` +
+        `1. The backend server is running on ${API_BASE_URL}\n` +
+        '2. Your internet connection is stable\n' +
+        '3. The destination name is correct\n' +
+        '4. Check the browser console for more details';
       
+      alert(errorDetails);
+    } finally {
       setIsGenerating(false);
-      return;
     }
-    
-    setIsGenerating(false);
   };
 
   const nextStep = () => {

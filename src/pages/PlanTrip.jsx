@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import ENV from '../config/env';
 
 // --- Helper Components for UI ---
 
@@ -78,9 +79,8 @@ const PlanTrip = () => {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    // Establish WebSocket connection when the component mounts.
-    // Use the VITE_API_BASE_URL from environment variables or default to localhost:3000
-    const socketUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    // Use the WebSocket URL from environment configuration
+    const socketUrl = ENV.WS_URL;
     
     console.log('Attempting to connect to WebSocket server at:', socketUrl);
     

@@ -1,15 +1,16 @@
 // server.js
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
-import dotenv from "dotenv";
-import * as freeDataService from './services/freeDataService.js';
-import path from 'path';
+import path from "path";
+import freeDataService from "./services/freeDataService.js";
 import { fileURLToPath } from 'url';
 import http from 'http';
 import { Server } from 'socket.io';
 import amqp from 'amqplib';
 import { v4 as uuidv4 } from 'uuid';
+import dotenv from "dotenv";
+import { findEvents } from "./services/cohereEventService.js";
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,11 +49,23 @@ const PORT = process.env.PORT || 3000; // Running backend on port 3000
 // Configure CORS for both HTTP and WebSocket
 const corsOptions = {
   origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "x-api-key",
+    "Access-Control-Allow-Origin",
+    "Access-Control-Allow-Headers"
+  ],
+  exposedHeaders: [
+    "Content-Length", 
+    "X-Foo", 
+    "X-Bar"
+  ],
+  credentials: true
 };
 
+// Enable CORS for all routes
 app.use(cors(corsOptions));
 
 // Handle preflight requests
@@ -64,6 +77,526 @@ app.get('/health', (req, res) => {
 });
 
 app.use(express.json());
+
+// --- ITINERARY ENDPOINT ---
+app.post('/api/itinerary', async (req, res) => {
+  // Set CORS headers
+  res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  try {
+    const { destination, days, interests, startDate, budget, travelers } = req.body;
+    
+    if (!destination || !days || !startDate) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        required: ['destination', 'days', 'startDate']
+      });
+    }
+
+    // Import freeDataService
+    const freeDataService = (await import('./services/freeDataService.js')).default;
+    
+    // Fetch real data
+    const [attractions, restaurants] = await Promise.all([
+      freeDataService.getAttractions(destination, budget),
+      freeDataService.getRestaurants(destination, budget)
+    ]);
+
+    const start = new Date(startDate);
+    const end = new Date(start);
+    end.setDate(start.getDate() + parseInt(days) - 1);
+    
+    const formatDate = (date) => {
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    };
+
+    // Generate daily itineraries with real data
+    const daysArray = [];
+    for (let i = 0; i < days; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
+      
+      // Get attractions and restaurants for this day
+      const dayAttractions = attractions.slice(i * 2, (i + 1) * 2);
+      // Get two different restaurants for lunch and dinner
+      const lunchIndex = (i * 2) % restaurants.length;
+      const dinnerIndex = (i * 2 + 1) % restaurants.length;
+      const lunchRestaurant = restaurants[lunchIndex];
+      const dinnerRestaurant = restaurants[dinnerIndex] || lunchRestaurant; // Fallback to lunch restaurant if no dinner option
+      
+      const activities = [
+        {
+          id: 1,
+          time: '08:00',
+          title: 'Breakfast at Hotel',
+          type: 'meal',
+          icon: '<FaUtensils className="text-red-500" />',
+          location: 'Hotel',
+          notes: 'Complimentary breakfast for hotel guests',
+          duration: '1h'
+        }
+      ];
+
+      // Add morning activity (attraction)
+      if (dayAttractions[0]) {
+        activities.push({
+          id: 2,
+          time: '10:00',
+          title: dayAttractions[0].name,
+          type: 'sightseeing',
+          icon: '<FaCamera className="text-blue-500" />',
+          location: dayAttractions[0].tags?.address || destination,
+          notes: dayAttractions[0].description || 'Explore this local attraction',
+          duration: '2h',
+          price: 'Free'
+        });
+      }
+
+      // Add lunch
+      if (lunchRestaurant) {
+        activities.push({
+          id: 3,
+          time: '12:30',
+          title: lunchRestaurant.name || 'Local Restaurant',
+          type: 'meal',
+          icon: '<FaUtensils className="text-red-500" />',
+          location: lunchRestaurant.tags?.address || 'Local Restaurant',
+          notes: lunchRestaurant.cuisine ? `Serving ${lunchRestaurant.cuisine}` : 'Local cuisine',
+          duration: '1h 30m',
+          price: freeDataService.getBudgetSymbol(budget)
+        });
+      }
+
+      // Add afternoon activity (attraction)
+      if (dayAttractions[1]) {
+        activities.push({
+          id: 4,
+          time: '14:30',
+          title: dayAttractions[1].name,
+          type: 'sightseeing',
+          icon: '<FaCamera className="text-blue-500" />',
+          location: dayAttractions[1].tags?.address || destination,
+          notes: dayAttractions[1].description || 'Explore this local attraction',
+          duration: '2h',
+          price: 'Free'
+        });
+      }
+
+      // Add dinner
+      if (dinnerRestaurant) {
+        activities.push({
+          id: 5,
+          time: '19:00',
+          title: dinnerRestaurant.name || 'Local Restaurant',
+          type: 'meal',
+          icon: '<FaUtensils className="text-red-500" />',
+          location: dinnerRestaurant.tags?.address || 'Local Restaurant',
+          notes: dinnerRestaurant.cuisine ? `Serving ${dinnerRestaurant.cuisine}` : 'Local cuisine',
+          duration: '2h',
+          price: freeDataService.getBudgetSymbol(budget)
+        });
+      }
+
+      daysArray.push({
+        id: i + 1,
+        date: formatDate(currentDate),
+        title: `Day ${i + 1}: ${destination} Exploration`,
+        activities
+      });
+    }
+
+    const itinerary = {
+      destination,
+      duration: `${days} days`,
+      travelDates: `${formatDate(start)} - ${formatDate(end)}`,
+      travelers: parseInt(travelers) || 1,
+      budget: freeDataService.getBudgetSymbol(budget),
+      days: daysArray
+    };
+
+    res.json(itinerary);
+  } catch (error) {
+    console.error('Error generating itinerary:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate itinerary',
+      details: error.message 
+    });
+  }
+});
+
+// --- EVENTS ENDPOINT ---
+app.get("/api/events", async (req, res) => {
+  try {
+    const { city, category, dateRange } = req.query;
+    
+    if (!city) {
+      return res.status(400).json({ error: "City parameter is required" });
+    }
+
+    console.log(`Fetching events for city: ${city}, category: ${category}, dateRange: ${dateRange}`);
+    const events = await findEvents(city, dateRange, category);
+    
+    if (!events || events.length === 0) {
+      return res.status(404).json({ 
+        error: "No events found",
+        message: `Could not find any events in ${city}${category ? ' in the ' + category + ' category' : ''}`
+      });
+    }
+    
+    res.json(events);
+  } catch (error) {
+    console.error("Error in /api/events:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch events",
+      details: error.message 
+    });
+  }
+});
+app.use(express.static(path.join(__dirname, '../build')));
+
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  if (Object.keys(req.body).length > 0) {
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
+
+// --- API ROUTES ---
+
+/**
+ * Route: GET /api/events
+ * Example: /api/events?city=Delhi&category=music&dateRange=next%20week
+ */
+app.get("/api/events", async (req, res) => {
+  try {
+    const { city, category, dateRange } = req.query;
+
+    if (!city) {
+      return res.status(400).json({ error: "City parameter is required" });
+    }
+
+    const events = await findEvents(city, dateRange, category);
+    res.json(events);
+  } catch (error) {
+    console.error("Error in /api/events:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch events",
+      details: error.message 
+    });
+  }
+});
+
+// --- ITINERARY GENERATION ENDPOINT ---
+app.post("/api/itinerary", async (req, res) => {
+  try {
+    const { destination, startDate, endDate, travelers, budget, interests } = req.body;
+    
+    if (!destination || !startDate || !endDate) {
+      return res.status(400).json({ 
+        error: "Missing required fields: destination, startDate, and endDate are required" 
+      });
+    }
+
+    // Generate a sample itinerary (you can replace this with actual logic)
+    const sampleItinerary = {
+      destination,
+      startDate,
+      endDate,
+      travelers: travelers || 1,
+      budget: budget || 'medium',
+      interests: interests || [],
+      days: [
+        {
+          date: startDate,
+          activities: [
+            {
+              type: 'attraction',
+              name: 'Local Landmark',
+              time: '10:00 AM',
+              duration: '2 hours',
+              description: 'Visit a famous local landmark',
+              location: 'City Center',
+              cost: 'Free',
+              bookingLink: '#'
+            },
+            {
+              type: 'meal',
+              name: 'Lunch at Local Restaurant',
+              time: '12:30 PM',
+              duration: '1.5 hours',
+              cuisine: 'Local Cuisine',
+              cost: '$$',
+              bookingLink: '#'
+            },
+            {
+              type: 'attraction',
+              name: 'Museum Visit',
+              time: '2:30 PM',
+              duration: '2 hours',
+              description: 'Explore local history and culture',
+              location: 'Museum District',
+              cost: '$15 per person',
+              bookingLink: '#'
+            }
+          ]
+        }
+      ]
+    };
+
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    res.json(sampleItinerary);
+  } catch (error) {
+    console.error("Error generating itinerary:", error);
+    res.status(500).json({
+      error: "Failed to generate itinerary",
+      details: error.message
+    });
+  }
+});
+
+// --- COMPARE DESTINATIONS ---
+app.post("/api/compare", async (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 8);
+  console.log(`\n=== New Compare Request (ID: ${requestId}) ===`);
+  
+  // Set CORS headers
+  res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  try {
+    const { destination1, destination2 } = req.body;
+    
+    if (!destination1 || !destination2) {
+      console.error(`[${requestId}] Error: Missing required parameters`);
+      return res.status(400).json({ 
+        success: false,
+        error: "Both destinations are required",
+        requestId
+      });
+    }
+
+    console.log(`[${requestId}] Fetching data for ${destination1} and ${destination2}`);
+    console.log(`[${requestId}] Environment check - OPENWEATHER_API_KEY: ${process.env.OPENWEATHER_API_KEY ? 'Present' : 'Missing'}`);
+
+    // Test coordinates lookup first with error handling
+    console.log(`[${requestId}] Testing coordinates lookup for ${destination1}...`);
+    let coords1;
+    try {
+      coords1 = await freeDataService.getCoordinates(destination1);
+      console.log(`[${requestId}] Coordinates for ${destination1}:`, coords1);
+    } catch (error) {
+      console.warn(`[${requestId}] Failed to get coordinates for ${destination1}:`, error.message);
+      coords1 = { lat: 0, lon: 0 }; // Default fallback
+    }
+
+    console.log(`[${requestId}] Testing coordinates lookup for ${destination2}...`);
+    let coords2;
+    try {
+      coords2 = await freeDataService.getCoordinates(destination2);
+      console.log(`[${requestId}] Coordinates for ${destination2}:`, coords2);
+    } catch (error) {
+      console.warn(`[${requestId}] Failed to get coordinates for ${destination2}:`, error.message);
+      coords2 = { lat: 0, lon: 0 }; // Default fallback
+    }
+
+    // Fetch data for both destinations in parallel with better error handling
+    console.log(`[${requestId}] Starting data fetch for both destinations`);
+    const results = await Promise.allSettled([
+      fetchDestinationData(destination1, requestId),
+      fetchDestinationData(destination2, requestId)
+    ]);
+
+    // Handle results
+    const data1 = results[0].status === 'fulfilled' ? results[0].value : { name: destination1, error: 'Failed to fetch data' };
+    const data2 = results[1].status === 'fulfilled' ? results[1].value : { name: destination2, error: 'Failed to fetch data' };
+
+    console.log(`[${requestId}] Data fetch completed:`, {
+      dest1: { success: results[0].status === 'fulfilled', dataPoints: Object.keys(data1).length },
+      dest2: { success: results[1].status === 'fulfilled', dataPoints: Object.keys(data2).length }
+    });
+
+    // Log detailed data for debugging
+    console.log(`[${requestId}] Destination 1 data:`, {
+      name: data1.name,
+      attractions: data1.attractions?.length || 0,
+      restaurants: data1.restaurants?.length || 0,
+      weather: data1.weather ? 'present' : 'missing'
+    });
+    console.log(`[${requestId}] Destination 2 data:`, {
+      name: data2.name,
+      attractions: data2.attractions?.length || 0,
+      restaurants: data2.restaurants?.length || 0,
+      weather: data2.weather ? 'present' : 'missing'
+    });
+
+    // Calculate comparison scores
+    const dest1Scores = calculateScore(data1.attractions || [], data1.restaurants || []);
+    const dest2Scores = calculateScore(data2.attractions || [], data2.restaurants || []);
+
+    // Generate pros and cons
+    const dest1ProsCons = generateProsConsWeather(
+      data1.weather || {},
+      data1.attractions || [],
+      data1.restaurants || [],
+      destination1
+    );
+
+    const dest2ProsCons = generateProsConsWeather(
+      data2.weather || {},
+      data2.attractions || [],
+      data2.restaurants || [],
+      destination2
+    );
+
+    const comparisonData = {
+      success: true,
+      requestId,
+      timestamp: new Date().toISOString(),
+      destination1: {
+        ...data1,
+        coordinates: coords1,
+        scores: dest1Scores,
+        pros: dest1ProsCons.pros,
+        cons: dest1ProsCons.cons,
+        // Calculate derived fields for frontend
+        rating: dest1Scores.overall.toFixed(1),
+        reviews: `${(data1.attractions?.length || 0) + (data1.restaurants?.length || 0)}`,
+        description: `Explore ${destination1} with ${(data1.attractions?.length || 0)} attractions and ${(data1.restaurants?.length || 0)} restaurants`,
+        price: data1.restaurants?.length > 5 ? '$$' : data1.restaurants?.length > 10 ? '$$$' : '$',
+        avgTemp: data1.weather?.temp ? `${Math.round(data1.weather.temp)}°C` : 'N/A',
+        weather: data1.weather || { temp: null, description: 'Weather data unavailable', humidity: 'N/A', windSpeed: 'N/A' },
+        highlights: data1.attractions?.slice(0, 4).map(a => a.name).filter(name => name && name.length > 0) || []
+      },
+      destination2: {
+        ...data2,
+        coordinates: coords2,
+        scores: dest2Scores,
+        pros: dest2ProsCons.pros,
+        cons: dest2ProsCons.cons,
+        // Calculate derived fields for frontend
+        rating: dest2Scores.overall.toFixed(1),
+        reviews: `${(data2.attractions?.length || 0) + (data2.restaurants?.length || 0)}`,
+        description: `Explore ${destination2} with ${(data2.attractions?.length || 0)} attractions and ${(data2.restaurants?.length || 0)} restaurants`,
+        price: data2.restaurants?.length > 5 ? '$$' : data2.restaurants?.length > 10 ? '$$$' : '$',
+        avgTemp: data2.weather?.temp ? `${Math.round(data2.weather.temp)}°C` : 'N/A',
+        weather: data2.weather || { temp: null, description: 'Weather data unavailable', humidity: 'N/A', windSpeed: 'N/A' },
+        highlights: data2.attractions?.slice(0, 4).map(a => a.name).filter(name => name && name.length > 0) || []
+      },
+      comparison: {
+        winner: dest1Scores.overall > dest2Scores.overall ? destination1 : destination2,
+        scores: {
+          [destination1]: dest1Scores.overall,
+          [destination2]: dest2Scores.overall
+        },
+        winnerScores: dest1Scores.overall > dest2Scores.overall ? dest1Scores : dest2Scores,
+        winnerName: dest1Scores.overall > dest2Scores.overall ? destination1 : destination2
+      }
+    };
+
+    console.log(`[${requestId}] Comparison data prepared`);
+    console.log(`[${requestId}] Final response structure:`, {
+      dest1: {
+        name: comparisonData.destination1.name,
+        rating: comparisonData.destination1.rating,
+        attractions: comparisonData.destination1.attractions?.length || 0,
+        restaurants: comparisonData.destination1.restaurants?.length || 0,
+        highlights: comparisonData.destination1.highlights?.length || 0,
+        weather: comparisonData.destination1.weather?.temp ? 'present' : 'missing'
+      },
+      dest2: {
+        name: comparisonData.destination2.name,
+        rating: comparisonData.destination2.rating,
+        attractions: comparisonData.destination2.attractions?.length || 0,
+        restaurants: comparisonData.destination2.restaurants?.length || 0,
+        highlights: comparisonData.destination2.highlights?.length || 0,
+        weather: comparisonData.destination2.weather?.temp ? 'present' : 'missing'
+      }
+    });
+    res.json(comparisonData);
+  } catch (error) {
+    console.error(`[${requestId}] Error in /api/compare:`, error);
+    res.status(500).json({ 
+      success: false,
+      requestId,
+      error: "Failed to compare destinations",
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+async function fetchDestinationData(destination, requestId) {
+  console.log(`[${requestId}] Starting fetchDestinationData for ${destination}`);
+  try {
+    console.log(`[${requestId}] Fetching data for ${destination}`);
+
+    // Fetch data in parallel
+    const [attractions, restaurants, hotels, weather] = await Promise.all([
+      freeDataService.getAttractions(destination).catch(err => {
+        console.error(`[${requestId}] Error fetching attractions for ${destination}:`, err.message);
+        return [];
+      }),
+      freeDataService.getRestaurants(destination).catch(err => {
+        console.error(`[${requestId}] Error fetching restaurants for ${destination}:`, err.message);
+        return [];
+      }),
+      freeDataService.getHotels(destination).catch(err => {
+        console.error(`[${requestId}] Error fetching hotels for ${destination}:`, err.message);
+        return [];
+      }),
+      freeDataService.getWeather(destination).catch(err => {
+        console.error(`[${requestId}] Error fetching weather for ${destination}:`, err.message);
+        return null;
+      })
+    ]);
+
+    console.log(`[${requestId}] Data fetched for ${destination}:`, {
+      attractions: attractions?.length || 0,
+      restaurants: restaurants?.length || 0,
+      hotels: hotels?.length || 0,
+      weather: weather ? 'success' : 'failed'
+    });
+
+    return {
+      name: destination,
+      attractions: attractions?.slice(0, 10) || [], // Limit to prevent large responses
+      restaurants: restaurants?.slice(0, 8) || [], // Limit to prevent large responses
+      hotels: hotels?.slice(0, 5) || [], // Limit to prevent large responses
+      weather: weather || { error: 'Weather data unavailable' },
+      lastUpdated: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error(`[${requestId}] Error in fetchDestinationData for ${destination}:`, error);
+    return {
+      name: destination,
+      error: `Failed to fetch data: ${error.message}`,
+      lastUpdated: new Date().toISOString()
+    };
+  }
+}
 
 
 // --- RABBITMQ & WEBSOCKET LOGIC (MCP Integration) ---
@@ -414,179 +947,165 @@ app.post('/api/itinerary', async (req, res) => {
 });
 
 
-// == Compare Destinations API Route ==
-app.post('/api/compare', async (req, res) => {
-  const requestId = Math.random().toString(36).substring(2, 8);
-  console.log(`\n=== New Compare Request (ID: ${requestId}) ===`);
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
+// This endpoint has been consolidated into the /api/compare endpoint above
 
-  try {
-    const { destination1, destination2 } = req.body;
+// Calculate scores based on available data
+function calculateScore(attractions = [], restaurants = []) {
+  // If no data, return neutral scores
+  if ((!attractions || attractions.length === 0) && (!restaurants || restaurants.length === 0)) {
+    return {
+      food: 2.5,
+      culture: 2.5,
+      adventure: 2.5,
+      nightlife: 2.0,
+      shopping: 2.5,
+      overall: 2.5
+    };
+  }
+  
+  // Calculate scores based on number of attractions and restaurants
+  const maxAttractions = 20; // Consider 20+ attractions as maximum
+  const maxRestaurants = 15; // Consider 15+ restaurants as maximum
+  
+  const attractionScore = Math.min(attractions.length / maxAttractions, 1) * 5;
+  const restaurantScore = Math.min(restaurants.length / maxRestaurants, 1) * 5;
+  
+  const scores = {
+    food: parseFloat(restaurantScore.toFixed(1)),
+    culture: parseFloat(attractionScore.toFixed(1)),
+    adventure: parseFloat(((attractionScore * 0.6) + (restaurantScore * 0.4)).toFixed(1)),
+    nightlife: parseFloat((restaurantScore * 0.8).toFixed(1)),
+    shopping: parseFloat(((attractionScore * 0.4) + (restaurantScore * 0.6)).toFixed(1))
+  };
+  
+  // Calculate overall score (weighted average)
+  const weights = {
+    food: 0.2,
+    culture: 0.25,
+    adventure: 0.25,
+    nightlife: 0.15,
+    shopping: 0.15
+  };
+  
+  scores.overall = parseFloat((
+    scores.food * weights.food +
+    scores.culture * weights.culture +
+    scores.adventure * weights.adventure +
+    scores.nightlife * weights.nightlife +
+    scores.shopping * weights.shopping
+  ).toFixed(1));
+  
+  return scores;
+}
 
-    if (!destination1 || !destination2) {
-      const errorMsg = 'Missing required fields: destination1 and destination2';
-      console.error(`[${requestId}] Error: ${errorMsg}`);
-      return res.status(400).json({ error: errorMsg });
+// Generate pros and cons based on data
+function generateProsConsWeather(weather = {}, attractions = [], restaurants = [], destName = '') {
+  const pros = [];
+  const cons = [];
+
+  // Attractions-based pros/cons
+  if (attractions.length > 30) {
+    pros.push(`Rich in cultural heritage (${attractions.length}+ attractions)`);
+  } else if (attractions.length > 10) {
+    pros.push('Plenty of things to see and do');
+  } else if (attractions.length > 5) {
+    pros.push('Good selection of attractions');
+  } else if (attractions.length <= 3) {
+    cons.push('Limited tourist attractions');
+  }
+
+  // Restaurants-based pros/cons
+  if (restaurants.length > 8) {
+    pros.push('Excellent dining scene');
+  } else if (restaurants.length > 5) {
+    pros.push('Good variety of restaurants');
+  } else if (restaurants.length <= 2) {
+    cons.push('Limited dining options');
+  }
+
+  // Weather-based pros/cons
+  if (weather && weather.temp !== undefined) {
+    if (weather.temp >= 20 && weather.temp <= 28) {
+      pros.push(`Perfect weather (${weather.temp}°C)`);
+    } else if (weather.temp > 28 && weather.temp <= 32) {
+      pros.push('Warm and sunny climate');
+    } else if (weather.temp > 32) {
+      cons.push(`Very hot weather (${weather.temp}°C)`);
+    } else if (weather.temp < 10) {
+      cons.push(`Cold weather (${weather.temp}°C)`);
+    } else if (weather.temp >= 10 && weather.temp < 20) {
+      pros.push('Cool and comfortable temperature');
     }
 
-    console.log(`[${requestId}] Fetching comparison data for ${destination1} vs ${destination2}`);
-
-    // Fetch data for both destinations in parallel
-    const [dest1Attractions, dest2Attractions, dest1Restaurants, dest2Restaurants, dest1Weather, dest2Weather] = await Promise.all([
-      freeDataService.getAttractions(destination1, 'medium'),
-      freeDataService.getAttractions(destination2, 'medium'),
-      freeDataService.getRestaurants(destination1, 'medium'),
-      freeDataService.getRestaurants(destination2, 'medium'),
-      freeDataService.getWeather(destination1),
-      freeDataService.getWeather(destination2)
-    ]);
-
-    // Calculate scores based on available data
-    const calculateScore = (attractions, restaurants) => {
-      const attractionScore = Math.min(attractions.length / 10, 1) * 5;
-      const restaurantScore = Math.min(restaurants.length / 10, 1) * 5;
-      return {
-        food: restaurantScore,
-        culture: attractionScore,
-        adventure: (attractionScore + restaurantScore) / 2,
-        nightlife: restaurantScore * 0.8,
-        shopping: (attractionScore + restaurantScore) / 2 * 0.9
-      };
-    };
-
-    const dest1Scores = calculateScore(dest1Attractions, dest1Restaurants);
-    const dest2Scores = calculateScore(dest2Attractions, dest2Restaurants);
-
-    // Generate pros and cons based on data
-    const generateProsConsWeather = (weather, attractions, restaurants, destName) => {
-      const pros = [];
-      const cons = [];
-
-      // Attractions-based pros/cons
-      if (attractions.length > 30) {
-        pros.push(`Rich in cultural heritage (${attractions.length}+ attractions)`);
-      } else if (attractions.length > 10) {
-        pros.push('Plenty of things to see and do');
-      } else if (attractions.length > 5) {
-        pros.push('Good selection of attractions');
-      } else if (attractions.length <= 3) {
-        cons.push('Limited tourist attractions');
-      }
-
-      // Restaurants-based pros/cons
-      if (restaurants.length > 8) {
-        pros.push('Excellent dining scene');
-      } else if (restaurants.length > 5) {
-        pros.push('Good variety of restaurants');
-      } else if (restaurants.length <= 2) {
-        cons.push('Limited dining options');
-      }
-
-      // Weather-based pros/cons
-      if (weather && weather.temp !== undefined) {
-        if (weather.temp >= 20 && weather.temp <= 28) {
-          pros.push(`Perfect weather (${weather.temp}°C)`);
-        } else if (weather.temp > 28 && weather.temp <= 32) {
-          pros.push('Warm and sunny climate');
-        } else if (weather.temp > 32) {
-          cons.push(`Very hot weather (${weather.temp}°C)`);
-        } else if (weather.temp < 10) {
-          cons.push(`Cold weather (${weather.temp}°C)`);
-        } else if (weather.temp >= 10 && weather.temp < 20) {
-          pros.push('Cool and comfortable temperature');
-        }
-
-        // Weather description based insights
-        if (weather.description && weather.description.includes('clear')) {
-          pros.push('Clear skies for sightseeing');
-        } else if (weather.description && weather.description.includes('rain')) {
-          cons.push('Rainy conditions');
-        }
-      }
-
-      // Ensure we always have at least some pros/cons
-      if (pros.length === 0) {
-        pros.push('Unique travel destination');
-        pros.push('Authentic local experience');
-      }
-      if (cons.length === 0) {
-        cons.push('Check visa requirements');
-        cons.push('Plan transportation ahead');
-      }
-
-      // Limit to top 4 of each
-      return { pros: pros.slice(0, 4), cons: cons.slice(0, 4) };
-    };
-
-    const dest1ProsCons = generateProsConsWeather(dest1Weather, dest1Attractions, dest1Restaurants);
-    const dest2ProsCons = generateProsConsWeather(dest2Weather, dest2Attractions, dest2Restaurants);
-
-    const comparisonData = {
-      destination1: {
-        name: destination1,
-        rating: (Object.values(dest1Scores).reduce((a, b) => a + b, 0) / Object.keys(dest1Scores).length).toFixed(1),
-        reviews: `${dest1Attractions.length + dest1Restaurants.length}`,
-        description: `Explore ${destination1} with ${dest1Attractions.length} attractions and ${dest1Restaurants.length} restaurants`,
-        price: dest1Restaurants.length > 5 ? '$$' : dest1Restaurants.length > 10 ? '$$$' : '$',
-        bestTime: dest1Weather ? `${dest1Weather.description}` : 'Check local weather',
-        avgTemp: dest1Weather ? `${Math.round(dest1Weather.temp)}°C` : 'N/A',
-        highlights: dest1Attractions.slice(0, 4).map(a => a.name),
-        categories: dest1Scores,
-        pros: dest1ProsCons.pros,
-        cons: dest1ProsCons.cons,
-        weather: dest1Weather
-      },
-      destination2: {
-        name: destination2,
-        rating: (Object.values(dest2Scores).reduce((a, b) => a + b, 0) / Object.keys(dest2Scores).length).toFixed(1),
-        reviews: `${dest2Attractions.length + dest2Restaurants.length}`,
-        description: `Explore ${destination2} with ${dest2Attractions.length} attractions and ${dest2Restaurants.length} restaurants`,
-        price: dest2Restaurants.length > 5 ? '$$' : dest2Restaurants.length > 10 ? '$$$' : '$',
-        bestTime: dest2Weather ? `${dest2Weather.description}` : 'Check local weather',
-        avgTemp: dest2Weather ? `${Math.round(dest2Weather.temp)}°C` : 'N/A',
-        highlights: dest2Attractions.slice(0, 4).map(a => a.name),
-        categories: dest2Scores,
-        pros: dest2ProsCons.pros,
-        cons: dest2ProsCons.cons,
-        weather: dest2Weather
-      }
-    };
-
-    console.log(`[${requestId}] ✅ Comparison data generated successfully`);
-    res.json(comparisonData);
-
-  } catch (error) {
-    console.error(`[${requestId}] Error generating comparison:`, error);
-    res.status(500).json({ error: 'Failed to generate comparison', message: error.message });
+    // Weather description based insights
+    if (weather.description && weather.description.includes('clear')) {
+      pros.push('Clear skies for sightseeing');
+    } else if (weather.description && weather.description.includes('rain')) {
+      cons.push('Rainy conditions');
+    }
   }
-});
+
+  // Ensure we always have at least some pros/cons
+  if (pros.length === 0) {
+    pros.push('Unique travel destination');
+    pros.push('Authentic local experience');
+  }
+  if (cons.length === 0) {
+    cons.push('Limited information available');
+  }
+
+  return { pros, cons };
+}
 
 app.post('/api/plan-trip-mcp', async (req, res) => {
   const orchestrator = new Orchestrator();
   try {
-    const plan = await orchestrator.planTrip(req.body);
+    // TODO: Implement trip planning logic here
+    const plan = {
+      status: 'not_implemented',
+      message: 'Trip planning functionality is not yet implemented'
+    };
     res.json(plan);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to plan trip', message: error.message });
+    console.error('Error in /api/plan-trip-mcp:', error);
+    res.status(500).json({ 
+      error: 'Failed to plan trip', 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
+// --- STATIC FRONTEND BUILD (for production) ---
+app.use(express.static(path.join(__dirname, "client", "dist")));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+});
+
+// --- ERROR HANDLER ---
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ 
+    error: 'Something went wrong!',
+    message: err.message 
+  });
+});
+
 // --- START SERVER ---
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
   console.log(`WebSocket server is running on ws://0.0.0.0:${PORT}/socket.io/`);
-  
-  // Log when the server is ready
   console.log('Server is ready to accept connections');
   
-  // Connect to RabbitMQ
-  connectRabbitMQ().catch(console.error);
+  // Connect to RabbitMQ if enabled
+  if (process.env.ENABLE_RABBITMQ === 'true') {
+    connectRabbitMQ().catch(console.error);
+  }
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err);
 });
-
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);

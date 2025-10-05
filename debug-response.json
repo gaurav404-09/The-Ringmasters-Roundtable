@@ -1,0 +1,882 @@
+{
+  "success": true,
+  "requestId": "jnrfnk",
+  "timestamp": "2025-10-05T09:35:12.571Z",
+  "destination1": {
+    "name": "Paris",
+    "attractions": [
+      {
+        "id": 130102845,
+        "name": "Musée de l'Armée",
+        "type": "museum",
+        "description": "Musée de l'Armée is a popular museum worth visiting.",
+        "coordinates": {
+          "lat": 48.8570374,
+          "lon": 2.3118779
+        },
+        "tags": {
+          "addr:city": "Paris",
+          "addr:housenumber": "129",
+          "addr:postcode": "75007",
+          "addr:street": "Rue de Grenelle",
+          "fee": "full:12;discount:10;free: under 26, handicap, press, unemployment",
+          "name": "Musée de l'Armée",
+          "name:de": "Armeemuseum",
+          "name:en": "The Army Museum",
+          "name:fr": "Musée de l'Armée (Les Invalides)",
+          "name:ru": "Музей Армии",
+          "opening_hours": "Nov-Mar: Mo-Su 10:00-17:00; Apr-Oct: Mo-Su 10:00-18:00; Apr-Sep: Tu 21:00+; Jan 1 off; May 1 off; Dec 25 off",
+          "source": "survey",
+          "toilets:wheelchair": "yes",
+          "tourism": "museum",
+          "website": "http://www.musee-armee.fr/",
+          "wheelchair": "yes",
+          "wheelchair:description:de": "Barrierefreier Zugang nur über Avenue de Tourville möglich",
+          "wikidata": "Q1996069",
+          "wikipedia": "fr:Musée de l'Armée (Paris)"
+        }
+      },
+      {
+        "id": 191031796,
+        "name": "Point zéro des Routes de France",
+        "type": "attraction",
+        "description": "Point zéro des Routes de France is a popular attraction worth visiting.",
+        "coordinates": {
+          "lat": 48.8533973,
+          "lon": 2.3487972
+        },
+        "tags": {
+          "historic": "milestone",
+          "latitude": "48.853402",
+          "longitude": "2.348785",
+          "man_made": "survey_point",
+          "name": "Point zéro des Routes de France",
+          "name:el": "Σημείο μηδέν για την μέτρηση αποστάσεων στην Γαλλία",
+          "name:en": "Point Zero for French Road Measurements",
+          "name:es": "Punto kilométrico cero de las carreteras francesas",
+          "name:fr": "Point zéro des Routes de France",
+          "name:sk": "Nulový kilometrovník francúzskych ciest",
+          "name:zh": "巴黎 原點",
+          "start_date": "1924",
+          "subject:wikidata": "Q329477",
+          "survey_point:structure": "medallion",
+          "tourism": "attraction",
+          "wheelchair": "yes",
+          "wikidata": "Q2467833",
+          "wikipedia": "fr:Point zéro des routes de France"
+        }
+      },
+      {
+        "id": 224711659,
+        "name": "Ibis",
+        "type": "hotel",
+        "description": "Ibis is a popular hotel worth visiting.",
+        "coordinates": {
+          "lat": 48.8403064,
+          "lon": 2.3155776
+        },
+        "tags": {
+          "brand": "Ibis",
+          "brand:wikidata": "Q920166",
+          "brand:wikipedia": "en:Ibis (hotel)",
+          "check_date": "2025-06-19",
+          "name": "Ibis",
+          "tourism": "hotel"
+        }
+      },
+      {
+        "id": 247435032,
+        "name": "Hôtel Saint-Honoré",
+        "type": "hotel",
+        "description": "Hôtel Saint-Honoré is a popular hotel worth visiting.",
+        "coordinates": {
+          "lat": 48.8611819,
+          "lon": 2.3436118
+        },
+        "tags": {
+          "check_date": "2025-06-04",
+          "contact:city": "Paris",
+          "contact:housenumber": "85",
+          "contact:phone": "+33 1 42 36 20 38",
+          "contact:postcode": "75001",
+          "contact:street": "Rue Saint-Honoré",
+          "contact:website": "https://www.hotelsthonore.com",
+          "name": "Hôtel Saint-Honoré",
+          "stars": "3",
+          "tourism": "hotel",
+          "wheelchair": "limited"
+        }
+      },
+      {
+        "id": 247435275,
+        "name": "Hôtel Montpensier",
+        "type": "hotel",
+        "description": "Hôtel Montpensier is a popular hotel worth visiting.",
+        "coordinates": {
+          "lat": 48.8643588,
+          "lon": 2.3362645
+        },
+        "tags": {
+          "check_date": "2025-02-15",
+          "contact:housenumber": "12",
+          "contact:postcode": "75001",
+          "contact:street": "Rue de Richelieu",
+          "email": "hotel-montpensier@wanadoo.fr",
+          "name": "Hôtel Montpensier",
+          "phone": "+33 1 42 96 28 50",
+          "ref:FR:SIREN": "592016091",
+          "ref:FR:SIRET": "59201609100023",
+          "ref:vatin": "FR13592016091",
+          "stars": "2",
+          "tourism": "hotel",
+          "website": "https://www.hotelmontpensierparis.com/",
+          "wheelchair": "no"
+        }
+      },
+      {
+        "id": 247436637,
+        "name": "Hôtel Louvre Bon Enfants",
+        "type": "hotel",
+        "description": "Hôtel Louvre Bon Enfants is a popular hotel worth visiting.",
+        "coordinates": {
+          "lat": 48.8629098,
+          "lon": 2.3381793
+        },
+        "tags": {
+          "check_date": "2024-06-01",
+          "name": "Hôtel Louvre Bon Enfants",
+          "stars": "3",
+          "tourism": "hotel"
+        }
+      },
+      {
+        "id": 247437972,
+        "name": "Hôtel Costes",
+        "type": "hotel",
+        "description": "Hôtel Costes is a popular hotel worth visiting.",
+        "coordinates": {
+          "lat": 48.8662827,
+          "lon": 2.3280089
+        },
+        "tags": {
+          "addr:city": "Paris",
+          "addr:housenumber": "7",
+          "addr:postcode": "75001",
+          "addr:street": "Rue de Castiglione",
+          "name": "Hôtel Costes",
+          "tourism": "hotel",
+          "website": "https://hotelcostes.com",
+          "wikidata": "Q904945"
+        }
+      },
+      {
+        "id": 247584452,
+        "name": "Musée des Arts Décoratifs",
+        "type": "museum",
+        "description": "Musée des Arts Décoratifs is a popular museum worth visiting.",
+        "coordinates": {
+          "lat": 48.8631692,
+          "lon": 2.3329513
+        },
+        "tags": {
+          "addr:housenumber": "107",
+          "addr:postcode": "75001",
+          "addr:street": "Rue de Rivoli",
+          "level": "4",
+          "name": "Musée des Arts Décoratifs",
+          "name:ru": "Музей декоративного искусства",
+          "phone": "+33 1 44 55 57 50",
+          "ref:FR:museofile": "M5021",
+          "source": "Ministère de la Culture - Muséofile - 11/2020",
+          "tourism": "museum",
+          "website": "https://madparis.fr/musee-des-arts-decoratifs",
+          "wheelchair": "limited",
+          "wikidata": "Q1319378",
+          "wikipedia": "fr:Musée des Arts décoratifs de Paris"
+        }
+      },
+      {
+        "id": 247618453,
+        "name": "Musée des Arts et Métiers",
+        "type": "museum",
+        "description": "Musée des Arts et Métiers is a popular museum worth visiting.",
+        "coordinates": {
+          "lat": 48.8660977,
+          "lon": 2.3554138
+        },
+        "tags": {
+          "addr:housenumber": "60",
+          "addr:postcode": "75003",
+          "addr:street": "Rue Réaumur",
+          "check_date": "2025-06-04",
+          "fax": "+33 1 53 01 82 01",
+          "fee": "yes",
+          "fee:conditional": "no @ age < 26; no @ Fr 18:00-21:00",
+          "name": "Musée des Arts et Métiers",
+          "name:en": "Museum of Arts et Métiers",
+          "name:ru": "Музей искусств и ремёсел",
+          "opening_hours": "Tu-Th 10:00-18:00; Fr 10:00-21:00; Sa-Su 10:00-18:00",
+          "payment:mastercard": "yes",
+          "payment:visa": "yes",
+          "phone": "+33 1 53 01 82 20",
+          "ref:FR:museofile": "M5065",
+          "source": "Ministère de la Culture - Muséofile - 09/2019",
+          "tourism": "museum",
+          "website": "https://www.arts-et-metiers.net",
+          "wheelchair": "yes",
+          "wikidata": "Q1538826",
+          "wikipedia": "fr:Musée des arts et métiers"
+        }
+      },
+      {
+        "id": 250657151,
+        "name": "Tour de Jean-sans-Peur",
+        "type": "castle",
+        "description": "Tour de Jean-sans-Peur is a popular castle worth visiting.",
+        "coordinates": {
+          "lat": 48.8643016,
+          "lon": 2.3480523
+        },
+        "tags": {
+          "alt_name": "Tour Jean-sans-Peur",
+          "check_date": "2025-06-04",
+          "fee": "yes",
+          "historic": "castle",
+          "name": "Tour de Jean-sans-Peur",
+          "note": "Closed in August",
+          "opening_hours": "We-Su 13:30-18:00",
+          "website": "http://www.tourjeansanspeur.com",
+          "wheelchair": "limited",
+          "wikidata": "Q3533101",
+          "wikipedia": "fr:Tour Jean-sans-Peur"
+        }
+      }
+    ],
+    "restaurants": [
+      {
+        "id": 247439841,
+        "name": "Uno",
+        "cuisine": "italian",
+        "description": "Serving italian, pizza cuisine",
+        "coordinates": {
+          "lat": 48.8618492,
+          "lon": 2.3434997
+        },
+        "priceLevel": "$$",
+        "address": "Rue Berger 37"
+      },
+      {
+        "id": 247455916,
+        "name": "La Crypte Polska",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 48.8672925,
+          "lon": 2.3255509
+        },
+        "priceLevel": "$$",
+        "address": "Address not available"
+      },
+      {
+        "id": 247455918,
+        "name": "Le Café Marly",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 48.8616428,
+          "lon": 2.3359304
+        },
+        "priceLevel": "$$",
+        "address": "Rue de Rivoli 93"
+      },
+      {
+        "id": 247455920,
+        "name": "Mystery Cuisine",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 48.865893,
+          "lon": 2.3372573
+        },
+        "priceLevel": "$$",
+        "address": "Address not available"
+      },
+      {
+        "id": 247455923,
+        "name": "Chez Denise",
+        "cuisine": "french",
+        "description": "Serving french cuisine",
+        "coordinates": {
+          "lat": 48.8615239,
+          "lon": 2.3440891
+        },
+        "priceLevel": "$$",
+        "address": "Address not available"
+      },
+      {
+        "id": 247455924,
+        "name": "La Robe et le Palais",
+        "cuisine": "bistro",
+        "description": "Serving bistro, french cuisine",
+        "coordinates": {
+          "lat": 48.8586437,
+          "lon": 2.3458501
+        },
+        "priceLevel": "$$",
+        "address": "Address not available"
+      },
+      {
+        "id": 247467738,
+        "name": "Macéo",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 48.8664042,
+          "lon": 2.3380601
+        },
+        "priceLevel": "$$",
+        "address": "Rue des Petits Champs 15"
+      },
+      {
+        "id": 247696091,
+        "name": "Les Arts et Métiers",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 48.865451,
+          "lon": 2.3553243
+        },
+        "priceLevel": "$$",
+        "address": "Address not available"
+      }
+    ],
+    "hotels": [
+      {
+        "id": 224711659,
+        "name": "Ibis",
+        "type": "hotel",
+        "description": "A hotel in Paris",
+        "coordinates": {
+          "lat": 48.8403064,
+          "lon": 2.3155776
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 247435032,
+        "name": "Hôtel Saint-Honoré",
+        "type": "hotel",
+        "description": "A hotel in Paris",
+        "coordinates": {
+          "lat": 48.8611819,
+          "lon": 2.3436118
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 247435275,
+        "name": "Hôtel Montpensier",
+        "type": "hotel",
+        "description": "A hotel in Paris",
+        "coordinates": {
+          "lat": 48.8643588,
+          "lon": 2.3362645
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 247436637,
+        "name": "Hôtel Louvre Bon Enfants",
+        "type": "hotel",
+        "description": "A hotel in Paris",
+        "coordinates": {
+          "lat": 48.8629098,
+          "lon": 2.3381793
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 247437972,
+        "name": "Hôtel Costes",
+        "type": "hotel",
+        "description": "A hotel in Paris",
+        "coordinates": {
+          "lat": 48.8662827,
+          "lon": 2.3280089
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      }
+    ],
+    "weather": {
+      "temp": 14.37,
+      "description": "clear sky",
+      "icon": "01d",
+      "humidity": 67,
+      "windSpeed": 5.75
+    },
+    "lastUpdated": "2025-10-05T09:35:10.507Z",
+    "coordinates": {
+      "lat": 48.8588897,
+      "lon": 2.320041,
+      "display_name": "Paris, Île-de-France, France métropolitaine, France"
+    },
+    "scores": {
+      "food": 2.7,
+      "culture": 2.5,
+      "adventure": 2.6,
+      "nightlife": 2.1,
+      "shopping": 2.6,
+      "overall": 2.5
+    },
+    "pros": [
+      "Good selection of attractions",
+      "Good variety of restaurants",
+      "Cool and comfortable temperature",
+      "Clear skies for sightseeing"
+    ],
+    "cons": [
+      "Limited information available"
+    ],
+    "rating": "2.5",
+    "reviews": "18",
+    "description": "Explore Paris with 10 attractions and 8 restaurants",
+    "price": "$$",
+    "avgTemp": "14°C",
+    "highlights": [
+      "Musée de l'Armée",
+      "Point zéro des Routes de France",
+      "Ibis",
+      "Hôtel Saint-Honoré"
+    ]
+  },
+  "destination2": {
+    "name": "London",
+    "attractions": [
+      {
+        "id": 25507018,
+        "name": "Royal Tank Regiment Memorial",
+        "type": "memorial",
+        "description": "Royal Tank Regiment Memorial is a popular memorial worth visiting.",
+        "coordinates": {
+          "lat": 51.5061264,
+          "lon": -0.1244528
+        },
+        "tags": {
+          "historic": "memorial",
+          "memorial": "statue",
+          "name": "Royal Tank Regiment Memorial",
+          "name:hu": "Királyi harkocsizó ezred emlékműve",
+          "start_date": "2000",
+          "wikidata": "Q9323038"
+        }
+      },
+      {
+        "id": 25507019,
+        "name": "The Gurkha Soldier",
+        "type": "memorial",
+        "description": "The Gurkha Soldier is a popular memorial worth visiting.",
+        "coordinates": {
+          "lat": 51.5050924,
+          "lon": -0.1249977
+        },
+        "tags": {
+          "historic": "memorial",
+          "memorial": "statue",
+          "name": "The Gurkha Soldier",
+          "subject:wikipedia": "en:Brigade of Gurkhas",
+          "wikidata": "Q18574747",
+          "wikipedia": "en:Gurkha Memorial, London"
+        }
+      },
+      {
+        "id": 25507022,
+        "name": "Anglo-Belgian War Memorial",
+        "type": "memorial",
+        "description": "Anglo-Belgian War Memorial is a popular memorial worth visiting.",
+        "coordinates": {
+          "lat": 51.5086558,
+          "lon": -0.1207417
+        },
+        "tags": {
+          "description:hu": "Felirat magyarul: \"Belgium hálás népétől a brit nemzetnek 1914–1918\"",
+          "historic": "memorial",
+          "inscription": "To the British nation from the grateful people of Belgium, 1914–1918",
+          "name": "Anglo-Belgian War Memorial",
+          "name:hu": "Belgiumi I. világháborús emlékmű",
+          "start_date": "1920",
+          "wikidata": "Q18562303",
+          "wikipedia": "en:Anglo-Belgian Memorial, London"
+        }
+      },
+      {
+        "id": 25507023,
+        "name": "Spencer Compton",
+        "type": "artwork",
+        "description": "Spencer Compton is a popular artwork worth visiting.",
+        "coordinates": {
+          "lat": 51.5048489,
+          "lon": -0.126149
+        },
+        "tags": {
+          "alt_name": "Spencer Compton, 8th Duke of Devonshire",
+          "artwork_type": "statue",
+          "material": "bronze",
+          "name": "Spencer Compton",
+          "subject:wikidata": "Q334063",
+          "subject:wikipedia": "en:Spencer Cavendish, 8th Duke of Devonshire",
+          "tourism": "artwork",
+          "wikidata": "Q18176770",
+          "wikipedia": "en:Statue of the Duke of Devonshire, Whitehall"
+        }
+      },
+      {
+        "id": 25507033,
+        "name": "Royal Air Force Memorial",
+        "type": "memorial",
+        "description": "Royal Air Force Memorial is a popular memorial worth visiting.",
+        "coordinates": {
+          "lat": 51.5039918,
+          "lon": -0.1230828
+        },
+        "tags": {
+          "historic": "memorial",
+          "memorial": "war_memorial",
+          "name": "Royal Air Force Memorial",
+          "operator": "Royal Air Force Benevolent Fund",
+          "wikidata": "Q7373614",
+          "wikipedia": "en:Royal Air Force Memorial"
+        }
+      },
+      {
+        "id": 25507034,
+        "name": "Battle of Britain Memorial",
+        "type": "memorial",
+        "description": "Battle of Britain Memorial is a popular memorial worth visiting.",
+        "coordinates": {
+          "lat": 51.502939,
+          "lon": -0.123428
+        },
+        "tags": {
+          "historic": "memorial",
+          "memorial": "war_memorial",
+          "name": "Battle of Britain Memorial",
+          "start_date": "2005",
+          "wikidata": "Q2919484",
+          "wikipedia": "en:Battle of Britain Monument, London"
+        }
+      },
+      {
+        "id": 25507035,
+        "name": "Douglas Haig",
+        "type": "monument",
+        "description": "Douglas Haig is a popular monument worth visiting.",
+        "coordinates": {
+          "lat": 51.5042783,
+          "lon": -0.1262449
+        },
+        "tags": {
+          "alt_name": "Douglas Haig, 1st Earl Haig",
+          "artwork_type": "statue",
+          "historic": "monument",
+          "inscription": "Field Marshal Earl Haig Commander-in-Chief of the British Armies in France 1915-1918",
+          "name": "Douglas Haig",
+          "subject:wikidata": "Q312564",
+          "subject:wikipedia": "en:Douglas Haig, 1st Earl Haig",
+          "wheelchair": "limited",
+          "wheelchair:description": "In traffic island with kerbs, view from pavement.",
+          "wikidata": "Q5325895",
+          "wikipedia": "en:Earl Haig Memorial"
+        }
+      },
+      {
+        "id": 25507036,
+        "name": "Alan Brooke, 1st Viscount Alanbrooke",
+        "type": "memorial",
+        "description": "Alan Brooke, 1st Viscount Alanbrooke is a popular memorial worth visiting.",
+        "coordinates": {
+          "lat": 51.5035868,
+          "lon": -0.1258141
+        },
+        "tags": {
+          "addr:city": "London",
+          "addr:street": "Whitehall",
+          "alt_name": "Alan Brooke, 1st Viscount Alanbrooke",
+          "artwork_type": "statue",
+          "historic": "memorial",
+          "memorial": "war_memorial",
+          "name": "Alan Brooke, 1st Viscount Alanbrooke",
+          "subject:wikidata": "Q335889",
+          "subject:wikipedia": "en:Alan Brooke, 1st Viscount Alanbrooke",
+          "wheelchair": "yes",
+          "wheelchair:description": "On paved area beside footway.",
+          "wikidata": "Q19590532",
+          "wikipedia": "en:Statue of the Viscount Alanbrooke, London"
+        }
+      },
+      {
+        "id": 25507037,
+        "name": "Monty",
+        "type": "memorial",
+        "description": "Monty is a popular memorial worth visiting.",
+        "coordinates": {
+          "lat": 51.503367,
+          "lon": -0.1258314
+        },
+        "tags": {
+          "addr:city": "London",
+          "addr:street": "Whitehall",
+          "alt_name": "Bernard Montgomery, 1st Viscount Montgomery of Alamein",
+          "artwork_type": "statue",
+          "historic": "memorial",
+          "memorial": "statue",
+          "name": "Monty",
+          "subject:wikidata": "Q152025",
+          "subject:wikipedia": "en:Bernard Montgomery",
+          "wheelchair": "yes",
+          "wheelchair:description": "On paved area beside footway.",
+          "wikidata": "Q19360013",
+          "wikipedia": "en:Statue of the Viscount Montgomery, London"
+        }
+      },
+      {
+        "id": 25508657,
+        "name": "Queen Charlotte",
+        "type": "artwork",
+        "description": "Queen Charlotte is a popular artwork worth visiting.",
+        "coordinates": {
+          "lat": 51.5220351,
+          "lon": -0.1226708
+        },
+        "tags": {
+          "artwork_type": "statue",
+          "description": "maybe a queen",
+          "name": "Queen Charlotte",
+          "panoramax": "ce5b66dc-0a79-426d-969f-9673904c68d7",
+          "tourism": "artwork",
+          "wheelchair": "yes"
+        }
+      }
+    ],
+    "restaurants": [
+      {
+        "id": 26845558,
+        "name": "Old Tree Daiwan Bee",
+        "cuisine": "taiwanese",
+        "description": "Serving taiwanese cuisine",
+        "coordinates": {
+          "lat": 51.5110542,
+          "lon": -0.1325596
+        },
+        "priceLevel": "$$",
+        "address": "Address not available"
+      },
+      {
+        "id": 108035514,
+        "name": "A toca",
+        "cuisine": "portuguese",
+        "description": "Serving portuguese cuisine",
+        "coordinates": {
+          "lat": 51.47539,
+          "lon": -0.1312087
+        },
+        "priceLevel": "$$",
+        "address": "Wandsworth Road 339-343"
+      },
+      {
+        "id": 130210673,
+        "name": "The Serpentine Lido Cafe",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 51.5046688,
+          "lon": -0.1696555
+        },
+        "priceLevel": "$$",
+        "address": "Address not available"
+      },
+      {
+        "id": 132957893,
+        "name": "Alba",
+        "cuisine": "pizza",
+        "description": "Serving pizza cuisine",
+        "coordinates": {
+          "lat": 51.4651993,
+          "lon": -0.1291139
+        },
+        "priceLevel": "$$",
+        "address": "Bedford Road 3"
+      },
+      {
+        "id": 140681851,
+        "name": "Starbucks",
+        "cuisine": "coffee_shop",
+        "description": "Serving coffee_shop cuisine",
+        "coordinates": {
+          "lat": 51.4989916,
+          "lon": -0.1354995
+        },
+        "priceLevel": "$$",
+        "address": "Palmer Street 16-18"
+      },
+      {
+        "id": 169355678,
+        "name": "Bon Gusto",
+        "cuisine": "italian",
+        "description": "Serving italian cuisine",
+        "coordinates": {
+          "lat": 51.4992102,
+          "lon": -0.1378188
+        },
+        "priceLevel": "$$",
+        "address": "Buckingham Gate 75-76"
+      },
+      {
+        "id": 169368767,
+        "name": "Bank Restaurant & Bar",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 51.4986304,
+          "lon": -0.1372558
+        },
+        "priceLevel": "$$",
+        "address": "Buckingham Gate 45"
+      },
+      {
+        "id": 169436940,
+        "name": "Buckingham Coffee Lounge",
+        "cuisine": "Local",
+        "description": "Local cuisine",
+        "coordinates": {
+          "lat": 51.4987752,
+          "lon": -0.1412257
+        },
+        "priceLevel": "$$",
+        "address": "Palace Street 19-21"
+      }
+    ],
+    "hotels": [
+      {
+        "id": 31314241,
+        "name": "DoubleTree by Hilton Hotel London - Marble Arch",
+        "type": "hotel",
+        "description": "A hotel in London",
+        "coordinates": {
+          "lat": 51.514571,
+          "lon": -0.1566381
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 59931333,
+        "name": "easyHotel Victoria",
+        "type": "hotel",
+        "description": "A hotel in London",
+        "coordinates": {
+          "lat": 51.4919882,
+          "lon": -0.1420048
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 273210322,
+        "name": "Sidney Hotel",
+        "type": "hotel",
+        "description": "A hotel in London",
+        "coordinates": {
+          "lat": 51.490333,
+          "lon": -0.138557
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 275399020,
+        "name": "Huttons Hotel, Victoria London",
+        "type": "hotel",
+        "description": "A hotel in London",
+        "coordinates": {
+          "lat": 51.4906272,
+          "lon": -0.138381
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      },
+      {
+        "id": 276070664,
+        "name": "Victor Hotel",
+        "type": "hotel",
+        "description": "A hotel in London",
+        "coordinates": {
+          "lat": 51.490678,
+          "lon": -0.1385005
+        },
+        "priceLevel": "$$",
+        "amenities": []
+      }
+    ],
+    "weather": {
+      "temp": 14.38,
+      "description": "few clouds",
+      "icon": "02d",
+      "humidity": 60,
+      "windSpeed": 6.55
+    },
+    "lastUpdated": "2025-10-05T09:35:12.567Z",
+    "coordinates": {
+      "lat": 51.4893335,
+      "lon": -0.1440551,
+      "display_name": "London, Greater London, England, United Kingdom"
+    },
+    "scores": {
+      "food": 2.7,
+      "culture": 2.5,
+      "adventure": 2.6,
+      "nightlife": 2.1,
+      "shopping": 2.6,
+      "overall": 2.5
+    },
+    "pros": [
+      "Good selection of attractions",
+      "Good variety of restaurants",
+      "Cool and comfortable temperature"
+    ],
+    "cons": [
+      "Limited information available"
+    ],
+    "rating": "2.5",
+    "reviews": "18",
+    "description": "Explore London with 10 attractions and 8 restaurants",
+    "price": "$$",
+    "avgTemp": "14°C",
+    "highlights": [
+      "Royal Tank Regiment Memorial",
+      "The Gurkha Soldier",
+      "Anglo-Belgian War Memorial",
+      "Spencer Compton"
+    ]
+  },
+  "comparison": {
+    "winner": "London",
+    "scores": {
+      "Paris": 2.5,
+      "London": 2.5
+    },
+    "winnerScores": {
+      "food": 2.7,
+      "culture": 2.5,
+      "adventure": 2.6,
+      "nightlife": 2.1,
+      "shopping": 2.6,
+      "overall": 2.5
+    },
+    "winnerName": "London"
+  }
+}

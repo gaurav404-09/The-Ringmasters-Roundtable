@@ -22,3 +22,85 @@ h3,
 .font-display {
   font-family: "Poppins", sans-serif;
 }
+
+/* Autocomplete Dropdown Styling */
+.react-autosuggest__container {
+  position: relative;
+  width: 100%;
+}
+
+.react-autosuggest__input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background-color: #ffffff;
+  color: #1f2937;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.react-autosuggest__input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.react-autosuggest__suggestions-container {
+  display: none;
+  position: absolute;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 1000;
+  margin-top: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.react-autosuggest__suggestions-container--open {
+  display: block;
+}
+
+.react-autosuggest__suggestions-list {
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+.react-autosuggest__suggestion {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: #1f2937;
+  transition: background-color 0.2s;
+}
+
+.react-autosuggest__suggestion:hover {
+  background-color: #f3f4f6;
+}
+
+.react-autosuggest__suggestion--highlighted {
+  background-color: #10b981;
+  color: white;
+}
+
+/* Scrollbar Styling */
+.react-autosuggest__suggestions-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.react-autosuggest__suggestions-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.react-autosuggest__suggestions-container::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 4px;
+}
+
+.react-autosuggest__suggestions-container::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
