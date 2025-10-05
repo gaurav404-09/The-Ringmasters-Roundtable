@@ -2,7 +2,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaUmbrellaBeach, FaRoute, FaMoneyBillWave, FaCalendarAlt, FaBalanceScale, FaClipboardList, FaUserCircle, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
 import { WiDaySunny } from 'react-icons/wi';
 import { useAuth } from '../context/AuthContext';
-
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -10,6 +9,7 @@ const Navbar = () => {
   
   const navItems = [
     { name: 'Home', path: '/', icon: <WiDaySunny className="text-xl" /> },
+    { name: 'Planner', path: '/planner', icon: <FaClipboardList className="text-lg" /> },
     { name: 'Weather', path: '/weather', icon: <WiDaySunny className="text-xl" /> },
     { name: 'Routes', path: '/routes', icon: <FaRoute className="text-lg" /> },
     { name: 'Budget', path: '/budget', icon: <FaMoneyBillWave className="text-lg" /> },
@@ -84,7 +84,7 @@ const Navbar = () => {
           {/* User/Auth Section */}
           <div className="hidden md:flex items-center space-x-4">
             <Link
-              to="/planner"
+              to="/travel-planner"
               className="px-4 py-2 rounded-md text-sm font-medium bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 hover:from-yellow-300 hover:to-yellow-400 transition-all duration-200 flex items-center space-x-1"
             >
               <FaRoute className="h-4 w-4" />

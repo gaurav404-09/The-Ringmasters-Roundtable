@@ -11,14 +11,13 @@ import Budget from "./pages/Budget";
 import Events from "./pages/Events";
 import Compare from "./pages/Compare";
 import Itinerary from "./pages/Itinerary";
-import TripSummary from "./pages/TripSummary.jsx";
+import TripSummary from "./pages/TripSummary";
 import AuthPage from './pages/AuthPage';
 import PlanTrip from './pages/PlanTrip';
 
-
 function App() {
   const location = useLocation();
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Navbar />
@@ -34,13 +33,13 @@ function App() {
             <Route path="/compare" element={<Compare />} />
             <Route path="/itinerary" element={<Itinerary />} />
             <Route path="/trip-summary" element={<TripSummary />} />
-            <Route path="/planner" element={<PlanTrip />} />
+            <Route path="/travel-planner" element={<PlanTrip />} />
+            <Route path="/planner" element={<Budget />} />
             <Route path="/auth" element={<AuthPage />} />
           </Routes>
         </AnimatePresence>
       </main>
       
-      {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">

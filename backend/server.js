@@ -11,6 +11,9 @@ import { v4 as uuidv4 } from 'uuid';
 import dotenv from "dotenv";
 import { findEvents } from "./services/cohereEventService.js";
 import fetch from 'node-fetch';
+import { getToken, getFlights, getHotels } from './services/amadeus.js';
+import { getTrains } from './services/trains.js';
+import { findCheapestTrip } from './services/optimizer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,17 +25,58 @@ dotenv.config({ path: envPath });
 const app = express();
 const server = http.createServer(app); // Create HTTP server from Express app
 
+// --- CORS Configuration ---
+const allowedOrigins = [
+  "http://localhost:5173", 
+  "http://127.0.0.1:5173",
+  "http://localhost:3000"
+];
+
+// Configure CORS with specific options
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, postman)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is allowed
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Log CORS errors for debugging
+    console.error('CORS Error: Origin not allowed', origin);
+    return callback(new Error(`Not allowed by CORS: ${origin}`), false);
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-api-key", "X-Requested-With"],
+  credentials: true,
+  optionsSuccessStatus: 204,
+  preflightContinue: false,
+  // Enable CORS for all routes
+  preflightContinue: false
+};
+
+// Apply CORS middleware
+console.log('CORS allowed origins:', allowedOrigins);
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Add a test route to verify CORS
+app.get('/api/test-cors', (req, res) => {
+  res.json({ message: 'CORS is working!', timestamp: new Date().toISOString() });
+});
+
 // --- SOCKET.IO CONFIGURATION ---
 const io = new Server(server, {
   path: "/socket.io/",
   cors: {
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "OPTIONS"],
     credentials: true
   },
-  // Force long polling first, then upgrade to WebSocket
   transports: ['polling', 'websocket'],
-  // Enable compatibility with older Socket.IO clients
   allowEIO3: true
 });
 
@@ -46,30 +90,40 @@ io.engine.on("connection_error", (err) => {
 const PORT = process.env.PORT || 3000; // Running backend on port 3000
 
 // --- MIDDLEWARE ---
-// Configure CORS for both HTTP and WebSocket
-const corsOptions = {
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type", 
-    "Authorization", 
-    "x-api-key",
-    "Access-Control-Allow-Origin",
-    "Access-Control-Allow-Headers"
-  ],
-  exposedHeaders: [
-    "Content-Length", 
-    "X-Foo", 
-    "X-Bar"
-  ],
-  credentials: true
-};
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Enable CORS for all routes
-app.use(cors(corsOptions));
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  if (Object.keys(req.body).length > 0) {
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
 
-// Handle preflight requests
-app.options('*', cors(corsOptions));
+// API Routes - Must come before static file serving
+app.get('/api/*', (req, res, next) => {
+  console.log(`API Request: ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Serve static files from the React app in production
+if (process.env.NODE_ENV === 'production') {
+  const staticPath = path.join(__dirname, '../../The-Ringmasters-Roundtable/dist');
+  app.use(express.static(staticPath));
+  console.log('Serving static files from:', staticPath);
+
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(staticPath, 'index.html'), (err) => {
+      if (err) {
+        console.error('Error sending file:', err);
+        res.status(500).send('Error loading the application');
+      }
+    });
+  });
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -264,8 +318,6 @@ app.get("/api/events", async (req, res) => {
     });
   }
 });
-app.use(express.static(path.join(__dirname, '../build')));
-
 // Log all incoming requests
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
@@ -281,23 +333,9 @@ app.use((req, res, next) => {
  * Route: GET /api/events
  * Example: /api/events?city=Delhi&category=music&dateRange=next%20week
  */
-app.get("/api/events", async (req, res) => {
-  try {
-    const { city, category, dateRange } = req.query;
-
-    if (!city) {
-      return res.status(400).json({ error: "City parameter is required" });
-    }
-
-    const events = await findEvents(city, dateRange, category);
-    res.json(events);
-  } catch (error) {
-    console.error("Error in /api/events:", error);
-    res.status(500).json({ 
-      error: "Failed to fetch events",
-      details: error.message 
-    });
-  }
+// API Routes
+app.get("/api/health", (req, res) => {
+  res.json({ status: "Backend is running" });
 });
 
 // --- ITINERARY GENERATION ENDPOINT ---
@@ -1056,6 +1094,463 @@ function generateProsConsWeather(weather = {}, attractions = [], restaurants = [
 
   return { pros, cons };
 }
+app.get("/api/test", (req, res) => {
+  res.json({ status: "Backend working!" });
+});
+
+// Flight search endpoint
+app.get('/api/flights', async (req, res) => {
+  try {
+    const { origin, destination, date } = req.query;
+    
+    if (!origin || !destination || !date) {
+      return res.status(400).json({
+        error: 'Missing required parameters: origin, destination, and date are required'
+      });
+    }
+    
+    const token = await getToken();
+    const flights = await getFlights(token, origin, destination, date);
+    res.json(flights);
+  } catch (error) {
+    console.error('Flight search error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch flights',
+      details: error.message
+    });
+  }
+});
+
+// Train search endpoint (support both /api/trains and /trains/getTrainOn for backward compatibility)
+app.get(['/api/trains', '/trains/getTrainOn'], async (req, res) => {
+  try {
+    const { from, to, date } = req.query;
+    
+    if (!from || !to || !date) {
+      return res.status(400).json({
+        error: 'Missing required parameters: from, to, and date are required'
+      });
+    }
+    
+    // Placeholder response - implement actual train search logic here
+    res.json({
+      message: 'Train search endpoint',
+      from,
+      to,
+      date,
+      trains: []
+    });
+  } catch (error) {
+    console.error('Train search error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch trains',
+      details: error.message
+    });
+  }
+});
+
+
+// Initialize data fetching
+console.log("Fetching data...");
+
+(async () => {
+  try {
+    // Get Amadeus access token
+    const token = await getToken();
+
+    // Fetch all travel data in parallel with default values
+    const defaultOrigin = 'DEL'; // Delhi
+    const defaultDestination = 'BOM'; // Mumbai
+    const defaultDate = new Date().toISOString().split('T')[0]; // Today's date
+    
+    const [flights, hotels, trains] = await Promise.all([
+      getFlights(token, defaultOrigin, defaultDestination, defaultDate, 1, 3).catch(err => {
+        console.error('Error fetching flights:', err.message);
+        return [];
+      }),
+      getHotels(token).catch(err => {
+        console.error('Error fetching hotels:', err.message);
+        return [];
+      }),
+      getTrains(defaultOrigin, defaultDestination, defaultDate).catch(err => {
+        console.error('Error fetching trains:', err.message);
+        return [];
+      }),
+    ]);
+
+    console.log("Flights fetched:", flights);
+    console.log("Hotels fetched:", hotels);
+    console.log("Trains fetched:", trains);
+
+    // Find cheapest trip
+    const cheapestTrip = findCheapestTrip(flights, trains, hotels);
+    console.log("Cheapest Trip:", cheapestTrip);
+
+    // Optional AI recommendation
+    // const aiRecommendation = await aiSuggest([
+    //   ...flights,
+    //   ...trains,
+    //   ...hotels,
+    // ]);
+    // console.log("AI Recommendation:\n", aiRecommendation);
+  } catch (err) {
+    console.error("Error fetching travel data:", err);
+  }
+})();
+
+// ====== Travel Route ======
+// Common IATA airport codes for validation
+const IATA_CODES = new Set([
+  'DEL', 'BOM', 'MAA', 'BLR', 'HYD', 'CCU', 'GOI', 'COK', 'PNQ', 'AMD', 'JAI',
+  'SIN', 'BKK', 'DXB', 'LHR', 'JFK', 'LAX', 'CDG', 'FRA', 'HKG', 'SYD'
+]);
+
+/**
+ * GET /api/travel - Search for travel options
+ * Query parameters:
+ *   - origin: 3-letter IATA code (e.g., DEL, BOM)
+ *   - destination: 3-letter IATA code
+ *   - date: Departure date in YYYY-MM-DD format
+ *   - checkInDate: Check-in date in YYYY-MM-DD format (defaults to departure date)
+ *   - checkOutDate: Check-out date in YYYY-MM-DD format (required for hotels)
+ *   - adults: Number of adults (default: 1)
+ */
+app.get("/api/travel", async (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 8);
+  console.log(`\n=== New Travel Request (ID: ${requestId}) ===`);
+  
+  try {
+    // Extract parameters
+    const origin = String(req.query.origin || '').trim().toUpperCase();
+    const destination = String(req.query.destination || '').trim().toUpperCase();
+    const date = String(req.query.date || '').trim();
+    const checkInDate = String(req.query.checkInDate || date).trim();
+    const checkOutDate = String(req.query.checkOutDate || '').trim();
+    const adults = parseInt(req.query.adults) || 1;
+    
+    // Log raw parameters for debugging
+    console.log(`[${requestId}] Raw parameters:`, {
+      origin,
+      destination,
+      date,
+      checkInDate,
+      checkOutDate,
+      adults
+    });
+
+    // Log request for debugging
+    console.log(`[${requestId}] Request:`, {
+      origin,
+      destination,
+      date,
+      checkInDate,
+      checkOutDate,
+      adults
+    });
+
+    // Validate parameters
+    const errors = [];
+    const today = new Date().toISOString().split('T')[0];
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    // Validate IATA codes format (3 uppercase letters)
+    const iataRegex = /^[A-Z]{3}$/;
+    if (!origin || !iataRegex.test(origin)) {
+      errors.push(`Invalid origin: '${origin}'. Must be a 3-letter IATA code (e.g., DEL, BOM)`);
+    } else if (!IATA_CODES.has(origin)) {
+      console.warn(`[${requestId}] Warning: Origin '${origin}' is not in the list of known IATA codes`);
+    }
+    
+    if (!destination || !iataRegex.test(destination)) {
+      errors.push(`Invalid destination: '${destination}'. Must be a 3-letter IATA code`);
+    } else if (!IATA_CODES.has(destination)) {
+      console.warn(`[${requestId}] Warning: Destination '${destination}' is not in the list of known IATA codes`);
+    }
+    
+    // Validate dates
+    if (!date || !dateRegex.test(date)) {
+      errors.push(`Invalid date format: '${date}'. Use YYYY-MM-DD`);
+    } else if (date < today) {
+      errors.push(`Departure date cannot be in the past: ${date}`);
+    }
+
+    if (!checkInDate || !dateRegex.test(checkInDate)) {
+      errors.push(`Invalid check-in date: '${checkInDate}'. Use YYYY-MM-DD`);
+    } else if (checkInDate < today) {
+      errors.push(`Check-in date cannot be in the past: ${checkInDate}`);
+    }
+
+    if (!checkOutDate || !dateRegex.test(checkOutDate)) {
+      errors.push(`Invalid check-out date: '${checkOutDate}'. Use YYYY-MM-DD`);
+    } else if (checkOutDate <= checkInDate) {
+      errors.push(`Check-out date must be after check-in date (${checkInDate} < ${checkOutDate})`);
+    }
+
+      // Return validation errors if any
+      if (errors.length > 0) {
+        console.error(`[${requestId}] Validation failed:`, errors);
+        return res.status(400).json({ 
+          success: false,
+          errors,
+          requestId,
+          receivedParams: req.query
+        });
+      }
+
+      console.log(`[${requestId}] Fetching travel data for ${origin} to ${destination} on ${date}`);
+      console.log(`[${requestId}] Check-in: ${checkInDate}, Check-out: ${checkOutDate}, Adults: ${adults}`);
+      
+      // Log environment variables (without sensitive data)
+      console.log(`[${requestId}] Environment:`, {
+        NODE_ENV: process.env.NODE_ENV,
+        AMADEUS_CLIENT_ID: process.env.AMADEUS_CLIENT_ID ? '***' + process.env.AMADEUS_CLIENT_ID.slice(-4) : 'MISSING',
+        AMADEUS_CLIENT_SECRET: process.env.AMADEUS_CLIENT_SECRET ? '***' + process.env.AMADEUS_CLIENT_SECRET.slice(-4) : 'MISSING'
+      });
+
+      // City code mapping for common cities (case-insensitive)
+      const cityCodeMap = {
+        'bombay': 'BOM',
+        'bangalore': 'BLR',
+        'chennai': 'MAA',
+        'kolkata': 'CCU',
+        'hyderabad': 'HYD',
+        'pune': 'PNQ',
+        'ahmedabad': 'AMD',
+        'goa': 'GOI',
+      'kochi': 'COK',
+      'jaipur': 'JAI',
+      'lucknow': 'LKO',
+      'patna': 'PAT',
+      'guwahati': 'GAU',
+      'chandigarh': 'IXC',
+      'amritsar': 'ATQ',
+      'varanasi': 'VNS',
+      'indore': 'IDR',
+      'bhopal': 'BHO',
+      'raipur': 'RPR',
+      'nagpur': 'NAG',
+      'vadodara': 'BDQ',
+      'surat': 'STV',
+      'rajkot': 'RAJ',
+      'bhubaneswar': 'BBI',
+      'visakhapatnam': 'VTZ',
+      'coimbatore': 'CJB',
+      'kozhikode': 'CCJ',
+      'mangalore': 'IXE',
+      'goa': 'GOI',
+      'srinagar': 'SXR',
+      'jammu': 'IXJ',
+      'leh': 'IXL',
+      'shimla': 'SLV',
+      'manali': 'KUU',
+      'dharamshala': 'DHM',
+      'dehradun': 'DED',
+      'udaipur': 'UDR',
+      'jodhpur': 'JDH',
+      'jaisalmer': 'JSA',
+      'jabalpur': 'JLR',
+      'gwalior': 'GWL',
+      'bikaner': 'BKB',
+      'jodhpur': 'JDH',
+      'jaisalmer': 'JSA',
+      'jabalpur': 'JLR',
+      'gwalior': 'GWL',
+      'bikaner': 'BKB',
+      'jodhpur': 'JDH',
+      'jaisalmer': 'JSA',
+      'jabalpur': 'JLR',
+      'gwalior': 'GWL',
+      'bikaner': 'BKB'
+    };
+
+    // Convert city names to IATA codes
+    const getCityCode = (city) => {
+      if (!city) return 'DEL'; // Default to Delhi if no city provided
+      const lowerCity = city.toString().toLowerCase().trim();
+      return cityCodeMap[lowerCity] || 'DEL'; // Default to Delhi if city not found
+    };
+
+    const originCode = getCityCode(origin);
+    const destCode = getCityCode(destination);
+
+    // Log the converted codes for debugging
+    console.log(`[${requestId}] Converted city codes:`, { origin, originCode, destination, destCode });
+    
+    // Validate date format (YYYY-MM-DD)
+    if (!dateRegex.test(date)) {
+      throw new Error('Invalid date format. Please use YYYY-MM-DD');
+    }
+
+    // Prepare hotel check-in/check-out dates with validation
+    let hotelCheckIn, hotelCheckOut;
+    try {
+      hotelCheckIn = checkInDate || date;
+      
+      // If no check-out date provided, default to check-in + 1 day
+      if (!checkOutDate) {
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        hotelCheckOut = nextDay.toISOString().split('T')[0];
+      } else {
+        hotelCheckOut = checkOutDate;
+      }
+      
+      // Final validation of dates
+      if (new Date(hotelCheckOut) <= new Date(hotelCheckIn)) {
+        throw new Error('Check-out date must be after check-in date');
+      }
+    } catch (error) {
+      console.error(`[${requestId}] Error processing dates:`, error);
+      errors.push(`Invalid date range: ${error.message}`);
+    }
+    
+    console.log(`[${requestId}] Starting data fetch...`);
+    console.log(`[${requestId}] Flight search: ${originCode} -> ${destCode} on ${date}`);
+    console.log(`[${requestId}] Hotel search: ${destCode} from ${hotelCheckIn} to ${hotelCheckOut}`);
+    
+    // Fetch data in parallel
+    const [flights, hotels, rawTrains] = await Promise.all([
+      // Flights
+      (async () => {
+        try {
+          const data = await getFlights(originCode, destCode, date);
+          console.log(`[${requestId}] Successfully fetched ${data?.length || 0} flights`);
+          if (data.length === 0) {
+            console.log(`[${requestId}] No flights found. This could be due to no availability or API limits.`);
+          } else {
+            console.log(`[${requestId}] Sample flight:`, JSON.stringify(data[0], null, 2));
+          }
+          return data || [];
+        } catch (err) {
+          console.error(`[${requestId}] Error fetching flights:`, err.message);
+          console.error(`[${requestId}] Error stack:`, err.stack);
+          return [];
+        }
+      })(),
+      
+      // Hotels
+      (async () => {
+        try {
+          const data = await getHotels(destCode, hotelCheckIn, hotelCheckOut, adults);
+          console.log(`[${requestId}] Successfully fetched ${data?.length || 0} hotels`);
+          if (data.length === 0) {
+            console.log(`[${requestId}] No hotels found. This could be due to no availability or API limits.`);
+          } else {
+            console.log(`[${requestId}] Sample hotel:`, JSON.stringify(data[0], null, 2));
+          }
+          return data || [];
+        } catch (err) {
+          console.error(`[${requestId}] Error fetching hotels:`, err.message);
+          console.error(`[${requestId}] Error stack:`, err.stack);
+          return [];
+        }
+      })(),
+        
+      // Trains
+      (async () => {
+        try {
+          const data = await getTrains(originCode, destCode, date);
+          console.log(`[${requestId}] Successfully fetched ${data?.length || 0} trains`);
+          return data || [];
+        } catch (err) {
+          console.error(`[${requestId}] Error fetching trains:`, err);
+          return [];
+        }
+      })()
+    ]);
+
+    // Log raw data for debugging
+    console.log(`[${requestId}] Raw data received:`);
+    console.log(`[${requestId}] Flights (${flights?.length || 0}):`, JSON.stringify(flights, null, 2));
+    console.log(`[${requestId}] Hotels (${hotels?.length || 0}):`, JSON.stringify(hotels, null, 2));
+    console.log(`[${requestId}] Raw trains (${rawTrains?.length || 0}):`, JSON.stringify(rawTrains, null, 2));
+
+    // Log raw trains data for debugging
+    console.log(`[${requestId}] Raw trains data:`, JSON.stringify(rawTrains, null, 2));
+    
+    // Format trains data to match frontend expectations
+    const trains = rawTrains.map((train) => {
+      const trainData = train.train_base || {};
+      const formattedTrain = {
+        type: 'train',
+        provider: 'Indian Railways',
+        from: trainData.from_stn_name || train.from || origin.toUpperCase(),
+        to: trainData.to_stn_name || train.to || destination.toUpperCase(),
+        fromCode: trainData.from_stn_code || origin.slice(0, 3).toUpperCase(),
+        toCode: trainData.to_stn_code || destination.slice(0, 3).toUpperCase(),
+        price: Number(train.price) || 0, // Ensure price is a number
+        duration: trainData.travel_time || 'N/A',
+        details: {
+          trainName: trainData.train_name || 'Express',
+          trainNumber: trainData.train_no || 'N/A',
+          departureTime: trainData.from_time || 'N/A',
+          arrivalTime: trainData.to_time || 'N/A',
+          runningDays: trainData.running_days || 'Daily',
+          class: train.class || 'SL',
+          seatsAvailable: train.seats_available || 0
+        }
+      };
+      
+      console.log(`[${requestId}] Formatted train:`, JSON.stringify(formattedTrain, null, 2));
+      return formattedTrain;
+    });
+
+    // Format flights and hotels to ensure price is a number
+    const formattedFlights = (Array.isArray(flights) ? flights : []).map(flight => ({
+      ...flight,
+      price: Number(flight.price) || 0,
+    }));
+
+    const formattedHotels = (Array.isArray(hotels) ? hotels : []).map(hotel => ({
+      ...hotel,
+      price: Number(hotel.price) || 0,
+    }));
+
+    const formattedTrains = Array.isArray(trains) ? trains : [];
+
+    console.log('Formatted data for cheapest trip calculation:', {
+      flights: formattedFlights,
+      trains: formattedTrains,
+      hotels: formattedHotels
+    });
+
+    // Log formatted data before finding cheapest trip
+    console.log(`[${requestId}] Formatted flights:`, JSON.stringify(formattedFlights, null, 2));
+    console.log(`[${requestId}] Formatted hotels:`, JSON.stringify(formattedHotels, null, 2));
+    console.log(`[${requestId}] Formatted trains:`, JSON.stringify(formattedTrains, null, 2));
+    
+    // Find cheapest trip
+    const cheapestTrip = findCheapestTrip(formattedFlights, formattedTrains, formattedHotels);
+    console.log(`[${requestId}] Cheapest trip result:`, JSON.stringify(cheapestTrip, null, 2));
+    
+    // Prepare the final response
+    const result = { 
+      flights: formattedFlights,
+      hotels: formattedHotels,
+      trains: formattedTrains,
+      cheapestTrip: cheapestTrip || null
+    };
+    
+    // Log the response structure
+    console.log(`[${requestId}] Sending response with data`);
+    console.log(`[${requestId}] Response structure:`, {
+      flights: { count: result.flights.length, hasPrices: result.flights.some(f => f.price > 0) },
+      hotels: { count: result.hotels.length, hasPrices: result.hotels.some(h => h.price > 0) },
+      trains: { count: result.trains.length, hasPrices: result.trains.some(t => t.price > 0) },
+      hasCheapestTrip: !!result.cheapestTrip
+    });
+    
+    // Send the response
+    res.json(result);
+  } catch (err) {
+    console.error("Error in /api/travel:", err);
+    console.error("Error stack:", err.stack);
+    res.status(500).json({ 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
 
 app.post('/api/plan-trip-mcp', async (req, res) => {
   const orchestrator = new Orchestrator();

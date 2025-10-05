@@ -87,24 +87,6 @@ This will start:
 - Frontend at [http://localhost:5173](http://localhost:5173) (in one window)
 - Backend API at [http://localhost:3000](http://localhost:3000) (in another window)
 
-#### Option 2: Manual Start
-
-1. **Start the backend server (in one terminal):**
-   ```bash
-   cd backend
-   node server.js
-   ```
-
-2. **Start the frontend development server (in another terminal):**
-   ```bash
-   # From the project root
-   npm run dev
-   ```
-
-3. **Access the application:**
-   - Frontend: [http://localhost:5173](http://localhost:5173)
-   - Backend API: [http://localhost:3000](http://localhost:3000)
-
 > **Note:** Make sure both servers are running for full functionality. The frontend communicates with the backend for data and real-time features.
 
 ## 🛠️ Detailed Setup
