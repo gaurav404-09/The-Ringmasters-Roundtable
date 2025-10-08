@@ -11,26 +11,23 @@ export default defineConfig(({ mode }) => {
       'process.env': {}
     },
     server: {
-      proxy: {
-        // Proxy API requests to the backend server
-        '/api': {
-          target: 'http://localhost:3000',
-          changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/api/, '')
-        },
-        // Proxy socket.io requests
-        '/socket.io': {
-          target: 'ws://localhost:3000',
-          ws: true
-        }
+      headers: {
+        'Content-Security-Policy': [
+          "default-src 'self' http://localhost:5173 http://127.0.0.1:5173 http://localhost:3000;",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' 'inline-speculation-rules' data: blob: http://localhost:5173 http://127.0.0.1:5173 https://apis.google.com https://www.gstatic.com https://identitytoolkit.googleapis.com;",
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;",
+          "font-src 'self' https://fonts.gstatic.com data:;",
+          "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://images.unsplash.com;",
+          "connect-src 'self' ws://localhost:5173 ws://127.0.0.1:5173 http://localhost:3000 http://127.0.0.1:3000 https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://lottie.host https://apis.google.com https://www.gstatic.com https://api.openweathermap.org https://tile.openweathermap.org;",
+          "frame-src 'self' https://apis.google.com https://www.gstatic.com https://*.firebaseapp.com;",
+          "worker-src 'self' blob:;",
+          "media-src 'self' https://*.tile.openstreetmap.org;",
+          "object-src 'none';"
+        ].join(' ')
       }
-    },
-    // For production build
-    build: {
-      outDir: 'dist',
-      assetsDir: 'assets',
-      sourcemap: true
     }
+    // If you're having issues with environment variables in production
+    // you might need to add this:
+    // envPrefix: 'VITE_',
   };
 });

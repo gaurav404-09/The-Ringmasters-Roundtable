@@ -1,174 +1,176 @@
+import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaUmbrellaBeach, FaRoute, FaMoneyBillWave, FaCalendarAlt, FaBalanceScale, FaClipboardList, FaUserCircle, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
+import {
+  FaRoute,
+  FaMoneyBillWave,
+  FaCalendarAlt,
+  FaBalanceScale,
+  FaClipboardList,
+  FaUserCircle,
+  FaSignInAlt,
+  FaSignOutAlt,
+} from 'react-icons/fa';
 import { WiDaySunny } from 'react-icons/wi';
 import { useAuth } from '../context/AuthContext';
+
+const BASE_NAV_ITEMS = [
+  { name: 'Home', path: '/', icon: WiDaySunny },
+  { name: 'Weather', path: '/weather', icon: WiDaySunny },
+  { name: 'Routes', path: '/routes', icon: FaRoute },
+  { name: 'Budget', path: '/budget', icon: FaMoneyBillWave },
+  { name: 'Events', path: '/events', icon: FaCalendarAlt },
+  { name: 'Compare', path: '/compare', icon: FaBalanceScale },
+  { name: 'Dashboard', path: '/dashboard', icon: FaClipboardList },
+  { name: 'Itinerary', path: '/itinerary', icon: FaClipboardList },
+];
+
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  
-  const navItems = [
-    { name: 'Home', path: '/', icon: <WiDaySunny className="text-xl" /> },
-    { name: 'Planner', path: '/planner', icon: <FaClipboardList className="text-lg" /> },
-    { name: 'Weather', path: '/weather', icon: <WiDaySunny className="text-xl" /> },
-    { name: 'Routes', path: '/routes', icon: <FaRoute className="text-lg" /> },
-    { name: 'Budget', path: '/budget', icon: <FaMoneyBillWave className="text-lg" /> },
-    { name: 'Events', path: '/events', icon: <FaCalendarAlt className="text-lg" /> },
-    { name: 'Compare', path: '/compare', icon: <FaBalanceScale className="text-lg" /> },
-    { name: 'Itinerary', path: '/itinerary', icon: <FaClipboardList className="text-lg" /> },
-  ];
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navItems = useMemo(() => {
+    const items = [
+      ...BASE_NAV_ITEMS,
+      { name: 'Plan Trip', path: '/planner', icon: FaRoute, type: 'link' },
+    ];
+
+    if (user) {
+      items.push({ name: 'Logout', action: 'logout', icon: FaSignOutAlt, type: 'action' });
+    } else {
+      items.push({ name: 'Login · Sign Up', path: '/auth', icon: FaSignInAlt, type: 'link' });
+    }
+
+    return items;
+  }, [user]);
+
+  const isActive = (path) => location.pathname === path;
+
+  const baseNavLinkClasses =
+    'inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold tracking-wide border-b-2 border-transparent text-slate-200 transition-colors duration-200';
+  const activeNavClasses = 'text-white border-white';
+  const inactiveNavClasses = 'text-slate-300 hover:text-white hover:border-white/40';
+
+  const navLinkClass = (path) =>
+    `${baseNavLinkClasses} ${path ? (isActive(path) ? activeNavClasses : inactiveNavClasses) : inactiveNavClasses}`;
+
+  const closeMobileMenu = () => setMobileOpen(false);
 
   const handleLogout = async () => {
     try {
       await logout();
       navigate('/');
+      closeMobileMenu();
     } catch (error) {
       console.error('Failed to log out', error);
     }
   };
 
   return (
-    <nav className="bg-gradient-to-r from-indigo-600 to-purple-700 text-white shadow-lg sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <span className="text-2xl">🎪</span>
-              <span className="text-xl font-bold text-white">Ringmaster's Roundtable</span>
-            </Link>
-          </div>
-          
-          {/* Desktop Navigation */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-center space-x-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`px-3 py-2 rounded-md text-sm font-medium flex items-center space-x-1 transition-colors duration-200 ${
-                    location.pathname === item.path
-                      ? 'bg-white/20 text-white'
-                      : 'text-white/90 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <span className="text-yellow-300">{item.icon}</span>
-                  <span>{item.name}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center p-2 rounded-md text-white/80 hover:text-white focus:outline-none"
-              aria-controls="mobile-menu"
-              aria-expanded="false"
-            >
-              <span className="sr-only">Open main menu</span>
-              <svg
-                className="block h-6 w-6"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          </div>
-
-          {/* User/Auth Section */}
-          <div className="hidden md:flex items-center space-x-4">
-            <Link
-              to="/travel-planner"
-              className="px-4 py-2 rounded-md text-sm font-medium bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 hover:from-yellow-300 hover:to-yellow-400 transition-all duration-200 flex items-center space-x-1"
-            >
-              <FaRoute className="h-4 w-4" />
-              <span>Plan Trip</span>
-            </Link>
-            {user ? (
-              <div className="ml-4 flex items-center md:ml-6">
-                <div className="relative">
-                  <div className="flex items-center space-x-2">
-                    <FaUserCircle className="h-8 w-8 text-white/90" />
-                    <span className="text-sm font-medium text-white/90">{user.email}</span>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-white/10 transition-colors duration-200"
-                >
-                  <FaSignOutAlt className="h-4 w-4" />
-                  <span>Logout</span>
+    <nav className="sticky top-0 z-50 border-b border-slate-800/70 text-white shadow-[0_14px_40px_rgba(15,23,42,0.5)] backdrop-blur-xl overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-900/90 to-slate-950/95" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" aria-hidden="true" />
+      <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6 lg:px-12 relative">
+        {/* Desktop Navigation */}
+        <div className="hidden lg:flex items-center gap-6">
+          {navItems.map(({ name, path, icon: Icon, action, type }) => {
+            if (type === 'action' && action === 'logout') {
+              return (
+                <button key="logout" onClick={handleLogout} className={navLinkClass()}>
+                  <Icon className="text-base" />
+                  <span>{name}</span>
                 </button>
-              </div>
-            ) : (
+              );
+            }
+
+            return (
               <Link
-                to="/auth"
-                className="ml-4 flex items-center space-x-1 px-4 py-2 rounded-md bg-white text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors duration-200"
+                key={path}
+                to={path}
+                onClick={closeMobileMenu}
+                className={navLinkClass(path)}
               >
-                <FaSignInAlt className="h-4 w-4" />
-                <span>Login / Sign Up</span>
+                <Icon className="text-base" />
+                <span>{name}</span>
               </Link>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-4">
+          {user && (
+            <div className="hidden lg:inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold tracking-wide text-white shadow-[0_6px_18px_rgba(15,23,42,0.35)]">
+              <FaUserCircle className="text-base text-white/80" />
+              <span className="max-w-[12rem] truncate">{user.email}</span>
+            </div>
+          )}
+
+          {/* Mobile toggle */}
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/5 p-2 text-white/80 transition-colors duration-200 hover:text-white focus:outline-none lg:hidden"
+            aria-controls="mobile-menu"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((prev) => !prev)}
+          >
+            <span className="sr-only">Toggle navigation</span>
+            <svg
+              className="h-6 w-6"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              {mobileOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+              )}
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Drawer */}
+      {mobileOpen && (
+        <div id="mobile-menu" className="lg:hidden border-t border-slate-800/70 bg-slate-900/95 backdrop-blur-xl">
+          <div className="space-y-4 px-4 py-6">
+            <div className="flex flex-col gap-2">
+              {navItems.map(({ name, path, icon: Icon, action, type }) => {
+                if (type === 'action' && action === 'logout') {
+                  return (
+                    <button key="logout" onClick={handleLogout} className={`${navLinkClass()} justify-center`}>
+                      <Icon className="text-base" />
+                      <span>{name}</span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={path}
+                    to={path}
+                    onClick={closeMobileMenu}
+                    className={`${navLinkClass(path)} justify-center`}
+                  >
+                    <Icon className="text-base" />
+                    <span>{name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {user && (
+              <div className="flex items-center gap-2 rounded-md border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_22px_rgba(15,23,42,0.35)]">
+                <FaUserCircle className="text-lg text-white/80" />
+                <span className="truncate">{user.email}</span>
+              </div>
             )}
           </div>
         </div>
-      </div>
-
-      {/* Mobile menu */}
-      <div className="md:hidden" id="mobile-menu">
-        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                location.pathname === item.path
-                  ? 'bg-white/20 text-white'
-                  : 'text-white/90 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <span className="text-yellow-300">{item.icon}</span>
-              <span>{item.name}</span>
-            </Link>
-          ))}
-          {user ? (
-            <div className="pt-4 pb-3 border-t border-white/10">
-              <div className="flex items-center px-5">
-                <div className="flex-shrink-0">
-                  <FaUserCircle className="h-10 w-10 text-white/90" />
-                </div>
-                <div className="ml-3">
-                  <div className="text-base font-medium text-white">{user.email}</div>
-                </div>
-              </div>
-              <div className="mt-3 px-2 space-y-1">
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-white/90 hover:bg-white/10"
-                >
-                  <div className="flex items-center space-x-2">
-                    <FaSignOutAlt className="h-4 w-4" />
-                    <span>Logout</span>
-                  </div>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <Link
-              to="/auth"
-              className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-white/90 hover:bg-white/10 hover:text-white mt-2"
-            >
-              <FaSignInAlt className="h-4 w-4" />
-              <span>Login / Sign Up</span>
-            </Link>
-          )}
-        </div>
-      </div>
+      )}
     </nav>
   );
 };

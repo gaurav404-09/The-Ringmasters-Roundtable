@@ -221,6 +221,71 @@ out body 10;`;
     }
   }
 
+  async getNearbyPlaces({ lat, lon }, options = {}) {
+    const { radius = 2500, focus = 'mixed' } = options;
+    if (typeof lat !== 'number' || typeof lon !== 'number') {
+      throw new Error('Latitude and longitude must be provided for nearby search');
+    }
+
+    const focusFilters = {
+      coffee: [
+        'node["amenity"="cafe"]',
+        'node["amenity"="coffee_shop"]',
+        'node["amenity"="restaurant"]["cuisine"~"coffee|cafe",i]'
+      ],
+      scenic: [
+        'node["tourism"="viewpoint"]',
+        'node["natural"="peak"]',
+        'node["tourism"="attraction"]["name"~"view|point",i]'
+      ],
+      mixed: [
+        'node["amenity"="cafe"]',
+        'node["amenity"="restaurant"]',
+        'node["tourism"="viewpoint"]',
+        'node["leisure"="park"]',
+        'node["tourism"="attraction"]'
+      ]
+    };
+
+    const filters = focusFilters[focus] || focusFilters.mixed;
+    const union = filters
+      .map((filter) => `  ${filter}(around:${radius},${lat},${lon});`)
+      .join('\n');
+
+    const query = `[out:json][timeout:25];
+(
+${union}
+);
+out body 30;
+>;
+out skel qt;`;
+
+    try {
+      const elements = await this.queryOverpass(query);
+      return elements
+        .filter((el) => el.tags?.name)
+        .map((el) => ({
+          id: el.id,
+          name: el.tags.name,
+          type:
+            el.tags.cuisine ? 'coffee' :
+            el.tags.amenity || el.tags.tourism || el.tags.natural || 'place',
+          description: this.generateDescription(el.tags),
+          coordinates: {
+            lat: el.lat ?? el.center?.lat ?? lat,
+            lon: el.lon ?? el.center?.lon ?? lon
+          },
+          address: el.tags['addr:street']
+            ? `${el.tags['addr:street']}${el.tags['addr:housenumber'] ? ' ' + el.tags['addr:housenumber'] : ''}`
+            : undefined,
+          tags: el.tags
+        }));
+    } catch (error) {
+      console.error('[FreeDataService] Error fetching nearby places:', error.message);
+      return [];
+    }
+  }
+
   // Get weather data
   async getWeather(destination) {
     console.log(`[FreeDataService] Getting weather for: ${destination}`);
@@ -315,3 +380,4 @@ export const getRestaurants = (destination, budget) => freeDataService.getRestau
 export const getHotels = (destination, budget) => freeDataService.getHotels(destination, budget);
 export const getWeather = (destination) => freeDataService.getWeather(destination);
 export const getBudgetSymbol = (budget) => freeDataService.getBudgetSymbol(budget);
+export const getNearbyPlaces = (coords, options) => freeDataService.getNearbyPlaces(coords, options);

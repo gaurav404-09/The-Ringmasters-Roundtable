@@ -43,7 +43,34 @@ def on_request(ch, method, props, body):
 
         except Exception as e:
             print(f" [MapAgent] Error processing route: {e}")
-            # Optionally, send an error message back
+            fallback_route = []
+            start_city = payload.get("start_city")
+            end_city = payload.get("end_city")
+            fallback_route.append({
+                "city": start_city or "Unknown",
+                "coord": payload.get("start_coord", "0,0")
+            })
+            fallback_route.append({
+                "city": end_city or "Unknown",
+                "coord": payload.get("end_coord", "0,0")
+            })
+
+            error_response = {
+                "trip_id": trip_id,
+                "intent": "RouteCalculated",
+                "payload": {
+                    "route": fallback_route,
+                    "error": str(e)
+                }
+            }
+
+            ch.basic_publish(
+                exchange='',
+                routing_key='orchestrator_queue',
+                properties=pika.BasicProperties(correlation_id=props.correlation_id),
+                body=json.dumps(error_response)
+            )
+            print(f" [MapAgent] Sent fallback route for trip '{trip_id}'.")
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
 

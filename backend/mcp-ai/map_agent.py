@@ -297,11 +297,18 @@ class MapAgent:
         response = requests.get(url)
         response.raise_for_status()
         coords = response.json()["routes"][0]["geometry"]["coordinates"]
-        
+
+        if not coords:
+            raise ValueError("Could not determine route coordinates between the supplied cities")
+
+        desired_points = num_days + 1 if num_days else 3
+        desired_points = max(3, desired_points)
+        desired_points = min(desired_points, len(coords))
+
         points = []
-        total_segments = max(1, num_days - 1)
-        for i in range(num_days):
-            idx = int(i * (len(coords) - 1) / total_segments)
+        total_segments = max(1, desired_points - 1)
+        for i in range(desired_points):
+            idx = int(round(i * (len(coords) - 1) / total_segments))
             points.append(coords[idx])
         
         final_points = []
