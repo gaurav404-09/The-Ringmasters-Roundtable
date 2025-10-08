@@ -12,7 +12,7 @@ import {
   WiStrongWind,
 } from "react-icons/wi";
 
-const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 const WEATHER_THEMES = {
   Clear: {
@@ -268,37 +268,34 @@ const Weather = () => {
   }, [themeKey, isDaytime]);
 
   const fetchWeather = async (location) => {
-    if (!OPENWEATHER_API_KEY) {
-      setError("Missing OpenWeather API key. Add VITE_OPENWEATHER_API_KEY to your env file.");
-      return;
-    }
-
     setLoading(true);
     setShowClip(true);
     setError(null);
 
     try {
+      const buildEndpoint = (pathname, params = {}) => {
+        const url = new URL(pathname, API_BASE_URL);
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && `${value}`.trim() !== "") {
+            url.searchParams.set(key, value);
+          }
+        });
+        return url.toString();
+      };
+
       const [currentRes, forecastRes] = await Promise.all([
-        fetch(
-          `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(
-            location,
-          )}&appid=${OPENWEATHER_API_KEY}&units=metric`,
-        ),
-        fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(
-            location,
-          )}&appid=${OPENWEATHER_API_KEY}&units=metric`,
-        ),
+        fetch(buildEndpoint("/api/weather", { q: location, units: "metric" })),
+        fetch(buildEndpoint("/api/forecast", { q: location, units: "metric" })),
       ]);
 
       const currentData = await currentRes.json();
-      if (currentData.cod !== 200) {
-        throw new Error(currentData.message || "Unable to fetch current conditions");
+      if (!currentRes.ok || currentData.cod !== 200) {
+        throw new Error(currentData.message || currentData.error || "Unable to fetch current conditions");
       }
 
       const forecastData = await forecastRes.json();
-      if (forecastData.cod !== "200") {
-        throw new Error(forecastData.message || "Unable to fetch forecast");
+      if (!forecastRes.ok || forecastData.cod !== "200") {
+        throw new Error(forecastData.message || forecastData.error || "Unable to fetch forecast");
       }
 
       const mappedCurrent = {

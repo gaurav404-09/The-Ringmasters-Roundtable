@@ -18,9 +18,7 @@ import itineraryRoutes from './routes/itineraryRoutes.js';
 import compareRoutes from './routes/compareRoutes.js';
 import nearbyRoutes from './routes/nearbyRoutes.js';
 import requestLogger from './middleware/requestLogger.js';
-import { getToken, getFlights, getHotels } from "./services/amadeus.js";
-import { getTrains } from "./services/trains.js";
-import { findCheapestTrip } from "./services/optimizer.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -550,105 +548,6 @@ function generateProsConsWeather(weather = {}, attractions = [], restaurants = [
   return { pros, cons };
 }
 
-app.get("/api/travel", async (req, res) => {
-  const {
-    origin,
-    destination,
-    date,
-    checkInDate,
-    checkOutDate,
-    adults = 1,
-  } = req.query;
-
-  if (!origin || !destination || !date || !checkInDate || !checkOutDate) {
-    return res.status(400).json({ error: "Missing required parameters" });
-  }
-
-  try {
-    const token = await getToken(); // throws if Amadeus keys missing or network issue
-
-    const [flights, hotels, rawTrains] = await Promise.all([
-      getFlights(token, origin, destination, date, parseInt(adults)).catch(
-        () => []
-      ),
-      getHotels(
-        token,
-        destination,
-        checkInDate,
-        checkOutDate,
-        parseInt(adults)
-      ).catch(() => []),
-      getTrains(origin, destination, date).catch(() => []),
-    ]);
-    const formatDuration = (d) => {
-      if (!d || d === "-") return "-";
-      const parts = d.toString().split(".");
-      const hours = parseInt(parts[0], 10);
-      const minutes = parts[1]
-        ? Math.round(parseFloat("0." + parts[1]) * 60)
-        : 0;
-      return `${hours}h ${minutes}m`;
-    };
-
-    // Map trains to frontend-friendly structure
-    const trains = rawTrains.map((t) => {
-      const train = t.train_base || {};
-      return {
-        from: train.from_stn_name || t.from || "-",
-        to: train.to_stn_name || t.to || "-",
-        fromCode: train.from_stn_code || t.fromCode || "-",
-        toCode: train.to_stn_code || t.toCode || "-",
-        startTime: train.from_time || t.startTime || "-",
-        endTime: train.to_time || t.endTime || "-",
-        duration: formatDuration(train.travel_time || t.duration || "-"),
-
-        // price: train.price ?? "-", // show "-" if price missing
-        details: {
-          trainName: train.train_name || t.details?.trainName || "Unknown",
-          trainNumber: train.train_no || t.details?.trainNumber || "N/A",
-          runningDays:
-            train.running_days
-              ?.split("")
-              .map((d, i) =>
-                d === "1"
-                  ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][i]
-                  : null
-              )
-              .filter(Boolean) || "-", // convert "1111111" to weekdays
-        },
-      };
-    });
-
-    const cheapestTrip =
-      flights.length || hotels.length
-        ? findCheapestTrip(flights, trains, hotels)
-        : null;
-
-    res.json({ flights, hotels, trains, cheapestTrip });
-  } catch (err) {
-    console.error("Error in /api/travel:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/plan-trip-mcp', async (req, res) => {
-  const orchestrator = new Orchestrator();
-  try {
-    // TODO: Implement trip planning logic here
-    const plan = {
-      status: 'not_implemented',
-      message: 'Trip planning functionality is not yet implemented'
-    };
-    res.json(plan);
-  } catch (error) {
-    console.error('Error in /api/plan-trip-mcp:', error);
-    res.status(500).json({ 
-      error: 'Failed to plan trip', 
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
 // --- STATIC FRONTEND BUILD (for production) ---
 app.use(express.static(path.join(__dirname, "client", "dist")));
 app.get("*", (req, res) => {
