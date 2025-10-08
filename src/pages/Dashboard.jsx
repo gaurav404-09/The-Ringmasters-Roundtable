@@ -15,7 +15,7 @@ import {
   FiTrendingUp,
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
-import { deleteUserTrip, fetchUserTrips, confirmTripItem } from '../lib/apiClient';
+import { deleteUserTrip, fetchUserTrips, confirmTripItem, confirmEntireTrip } from '../lib/apiClient';
 import NearbyAttractions from '../components/NearbyAttractions.jsx';
 
 const quickActions = [
@@ -90,12 +90,97 @@ const extractCities = (trip) => {
   return [...cities];
 };
 
+const parseISODate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const addDaysToDate = (date, days) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+const getTripDateRange = (trip) => {
+  const storedStart = parseISODate(trip?.startDate || trip?.start_date || trip?.result?.start_date);
+  const storedEnd = parseISODate(trip?.endDate || trip?.end_date || trip?.result?.end_date);
+  if (storedStart && storedEnd) {
+    return { start: storedStart, end: storedEnd };
+  }
+
+  if (storedStart && Number.isFinite(trip?.numDays)) {
+    const end = addDaysToDate(storedStart, Math.max(0, Number(trip.numDays) - 1));
+    return { start: storedStart, end };
+  }
+
+  return { start: null, end: null };
+};
+
+const formatDateRange = (start, end) => {
+  if (!start || !end) return 'Dates pending';
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const options = { month: 'short', day: 'numeric' };
+  const startLabel = start.toLocaleDateString(undefined, { ...options, year: sameYear ? undefined : 'numeric' });
+  const endLabel = end.toLocaleDateString(undefined, { ...options, year: 'numeric' });
+  return `${startLabel} – ${endLabel}`;
+};
+
+const isTripLiveNow = (trip) => {
+  const { start, end } = getTripDateRange(trip);
+  if (!start || !end) return false;
+  const now = new Date();
+  return now >= start && now <= end;
+};
+
+const getDerivedTripStatus = (trip) => {
+  const rawStatus = trip?.status || 'draft';
+  const { start, end } = getTripDateRange(trip);
+  if (start && end) {
+    const now = new Date();
+    if (now > end) {
+      return 'completed';
+    }
+    if ((rawStatus === 'confirmed' || rawStatus === 'live') && now >= start && now <= end) {
+      return 'live';
+    }
+  }
+  return rawStatus;
+};
+
+const flattenActivitiesWithSchedule = (trip) => {
+  const itinerary = fallbackItinerary(trip);
+  const { start } = getTripDateRange(trip);
+  if (!start) return [];
+
+  return itinerary.flatMap((day, dayIndex) => {
+    if (!Array.isArray(day?.activities)) return [];
+    const dayDate = addDaysToDate(start, dayIndex);
+    return day.activities.map((activity) => {
+      const [hours, minutes] = (activity?.time || '00:00').split(':').map((value) => parseInt(value, 10) || 0);
+      const scheduledAt = new Date(dayDate);
+      scheduledAt.setHours(hours, minutes, 0, 0);
+      return { activity, scheduledAt, dayLabel: day?.date || day?.day || dayIndex + 1, city: day?.city };
+    });
+  });
+};
+
+const getNextConfirmedActivity = (trip) => {
+  const now = new Date();
+  const activities = flattenActivitiesWithSchedule(trip).filter(({ activity }) => activity?.status === 'confirmed');
+  const upcoming = activities
+    .filter(({ scheduledAt }) => scheduledAt >= now)
+    .sort((a, b) => a.scheduledAt - b.scheduledAt);
+  return upcoming[0] || null;
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [trips, setTrips] = useState([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [error, setError] = useState(null);
   const [confirmingItemId, setConfirmingItemId] = useState(null);
+  const [confirmingTripId, setConfirmingTripId] = useState(null);
   const [expandedTripId, setExpandedTripId] = useState(null);
 
   const loadTrips = useCallback(async () => {
@@ -178,6 +263,29 @@ const Dashboard = () => {
     setExpandedTripId((prev) => (prev === tripId ? null : tripId));
   };
 
+  const handleConfirmTrip = async (trip) => {
+    if (!user?.uid || !trip?.id) {
+      toast.error('Missing information to confirm this trip.');
+      return;
+    }
+
+    setConfirmingTripId(trip.id);
+    try {
+      const response = await confirmEntireTrip(user.uid, trip.id);
+      if (!response?.success || !response?.trip) {
+        throw new Error(response?.error || 'Failed to confirm trip');
+      }
+
+      setTrips((prev) => prev.map((existing) => (existing.id === trip.id ? response.trip : existing)));
+      toast.success('Trip locked in. All itinerary items are confirmed.');
+    } catch (err) {
+      console.error('Failed to confirm trip:', err);
+      toast.error(err?.message || 'Unable to confirm trip right now.');
+    } finally {
+      setConfirmingTripId(null);
+    }
+  };
+
   const handleConfirmItem = async (trip, activity) => {
     if (!user?.uid || !trip?.id || !activity?.itemId) {
       toast.error('Missing information to confirm this booking.');
@@ -223,6 +331,51 @@ const Dashboard = () => {
       icon: 'text-white/70',
     };
   };
+
+  const getTripStatusMeta = (status) => {
+    switch (status) {
+      case 'confirmed':
+        return {
+          label: 'Confirmed',
+          pillClass: 'bg-emerald-300/20 border border-emerald-300/60 text-emerald-100',
+          icon: '🎟️',
+        };
+      case 'live':
+        return {
+          label: 'Live',
+          pillClass: 'bg-cyan-300/20 border border-cyan-300/60 text-cyan-100',
+          icon: '🚀',
+        };
+      case 'completed':
+        return {
+          label: 'Completed',
+          pillClass: 'bg-indigo-300/20 border border-indigo-300/60 text-indigo-100',
+          icon: '🏁',
+        };
+      default:
+        return {
+          label: 'Draft',
+          pillClass: 'bg-white/10 border border-white/20 text-white/70',
+          icon: '🗂️',
+        };
+    }
+  };
+
+  const decoratedTrips = useMemo(() => {
+    return trips.map((trip) => {
+      const derivedStatus = getDerivedTripStatus(trip);
+      const dates = getTripDateRange(trip);
+      const nextActivity = derivedStatus === 'live' ? getNextConfirmedActivity(trip) : null;
+      return {
+        ...trip,
+        derivedStatus,
+        dateRange: dates,
+        nextActivity,
+      };
+    });
+  }, [trips]);
+
+  const liveTrips = useMemo(() => decoratedTrips.filter((trip) => trip.derivedStatus === 'live'), [decoratedTrips]);
 
   const handleDeleteTrip = async (tripId) => {
     if (!user?.uid) return;
@@ -370,11 +523,58 @@ const Dashboard = () => {
               </div>
             ) : (
               <div className="space-y-6">
+                {liveTrips.length > 0 && (
+                  <section className="rounded-3xl border border-emerald-400/30 bg-emerald-500/10 p-6 text-white shadow-[0_25px_60px_rgba(16,185,129,0.25)] backdrop-blur">
+                    <h2 className="text-xl font-semibold">Live tours in motion</h2>
+                    <p className="mt-1 text-sm text-emerald-100/80">
+                      These trips are within their scheduled dates and have been fully confirmed. Tracking every movement keeps the crew in sync.
+                    </p>
+                    <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                      {liveTrips.map((trip) => {
+                        const next = trip.nextActivity;
+                        const statusMeta = getTripStatusMeta('live');
+                        return (
+                          <div key={`live-${trip.id}`} className="flex flex-col gap-4 rounded-2xl border border-emerald-300/50 bg-emerald-400/10 p-4 shadow-[0_18px_45px_rgba(16,185,129,0.2)]">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm uppercase tracking-[0.3em] text-emerald-100/80">Live now</p>
+                                <h3 className="mt-1 text-lg font-semibold text-white">{trip.title || `${trip.startCity} → ${trip.endCity}`}</h3>
+                              </div>
+                              <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] ${statusMeta.pillClass}`}>
+                                <span>{statusMeta.icon}</span>
+                                {statusMeta.label}
+                              </span>
+                            </div>
+                            <p className="text-xs uppercase tracking-[0.35em] text-emerald-100/70">
+                              {formatDateRange(trip.dateRange.start, trip.dateRange.end)}
+                            </p>
+                            {next ? (
+                              <div className="rounded-xl border border-emerald-300/40 bg-emerald-300/10 p-3 text-sm text-emerald-50">
+                                <p className="text-xs uppercase tracking-[0.35em] text-emerald-100/70">Up next</p>
+                                <p className="mt-1 font-semibold text-white">{next.activity.title || 'Scheduled activity'}</p>
+                                <p className="text-xs text-emerald-100/70">
+                                  {next.scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {next.city || `Day ${next.dayLabel}`}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-emerald-300/30 bg-emerald-300/5 p-3 text-xs text-emerald-100/70">
+                                All confirmed items for today are complete. Monitor for any ad-hoc changes.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+
                 {trips.map((trip) => {
+                  const decorated = decoratedTrips.find((item) => item.id === trip.id) || trip;
                   const itinerary = fallbackItinerary(trip);
                   const primaryCities = extractCities(trip);
                   const dayCount = itinerary.length || trip.numDays || 0;
                   const lastUpdated = trip.updatedAt || trip.createdAt;
+                  const statusMeta = getTripStatusMeta(decorated.derivedStatus);
 
                   return (
                     <motion.div
@@ -390,6 +590,13 @@ const Dashboard = () => {
                           <p className="text-xs uppercase tracking-[0.35em] text-white/50">
                             Saved {formatRelativeTime(lastUpdated)} • {primaryCities.length} cities • {dayCount} days orchestrated
                           </p>
+                          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] ${statusMeta.pillClass}`}>
+                            <span>{statusMeta.icon}</span>
+                            {statusMeta.label}
+                          </span>
+                          <p className="text-xs uppercase tracking-[0.3em] text-white/45">
+                            {formatDateRange(decorated.dateRange.start, decorated.dateRange.end)}
+                          </p>
                           <div className="flex flex-wrap gap-2 text-xs text-white/70">
                             {primaryCities.slice(0, 6).map((city) => (
                               <span key={city} className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
@@ -399,7 +606,17 @@ const Dashboard = () => {
                           </div>
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex flex-col items-stretch gap-2 sm:flex-row">
+                          {decorated.derivedStatus !== 'confirmed' && decorated.derivedStatus !== 'live' && (
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmTrip(trip)}
+                              className="inline-flex items-center justify-center rounded-full border border-emerald-300/60 bg-emerald-300/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100 transition hover:border-emerald-300/80 hover:bg-emerald-300/25 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={confirmingTripId === trip.id}
+                            >
+                              {confirmingTripId === trip.id ? 'Confirming…' : 'Confirm trip'}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleDeleteTrip(trip.id)}

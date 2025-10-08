@@ -53,6 +53,25 @@ const countEvents = (events = {}) => {
   return Object.values(events).reduce((total, cityEvents) => total + (cityEvents?.length || 0), 0);
 };
 
+const toDateInputValue = (date) => date.toISOString().split('T')[0];
+
+const addDays = (date, amount) => {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + amount);
+  return copy;
+};
+
+const calculateDaySpan = (startIso, endIso) => {
+  if (!startIso || !endIso) return 1;
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return 1;
+  }
+  const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+  return diffDays + 1;
+};
+
 const ResultSummary = ({ result, onReset }) => {
   const totalDays = result?.itinerary?.length || 0;
   const cities = useMemo(() => getUniqueCities(result?.itinerary || []), [result]);
@@ -251,7 +270,11 @@ const PlanTrip = () => {
 
   const [from, setFrom] = useState('Delhi');
   const [to, setTo] = useState('Goa');
-  const [days, setDays] = useState(5);
+  const todayIso = useMemo(() => toDateInputValue(new Date()), []);
+  const defaultEndIso = useMemo(() => toDateInputValue(addDays(new Date(), 4)), []);
+  const [startDate, setStartDate] = useState(todayIso);
+  const [endDate, setEndDate] = useState(defaultEndIso);
+  const [days, setDays] = useState(() => calculateDaySpan(todayIso, defaultEndIso));
   const [socket, setSocket] = useState(null);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -298,6 +321,20 @@ const PlanTrip = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const span = calculateDaySpan(startDate, endDate);
+    setDays(span);
+  }, [startDate, endDate]);
+
+  const updateEndDateForDays = (startIso, dayCount) => {
+    const start = parseISODate(startIso);
+    if (!start || !Number.isFinite(dayCount) || dayCount < 1) {
+      return;
+    }
+    const adjusted = toDateInputValue(addDays(start, Math.max(0, dayCount - 1)));
+    setEndDate(adjusted);
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
 
@@ -314,6 +351,8 @@ const PlanTrip = () => {
     socket.emit('plan_trip', {
       start_city: from,
       end_city: to,
+      start_date: startDate,
+      end_date: endDate,
       num_days: days,
     });
   };
@@ -344,6 +383,8 @@ const PlanTrip = () => {
         startCity: from,
         endCity: to,
         numDays: days,
+        startDate,
+        endDate,
         requestedAt: new Date().toISOString(),
         orchestrationLogs: logs,
         result,
@@ -397,8 +438,8 @@ const PlanTrip = () => {
                 </div>
               ) : (
                 <form className="space-y-6" onSubmit={handleSubmit}>
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="space-y-2">
+                  <div className="grid gap-4 sm:grid-cols-5">
+                    <div className="space-y-2 sm:col-span-2">
                       <label htmlFor="from" className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
                         Starting city
                       </label>
@@ -411,7 +452,7 @@ const PlanTrip = () => {
                         required
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 sm:col-span-2">
                       <label htmlFor="to" className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
                         Finale destination
                       </label>
@@ -432,10 +473,49 @@ const PlanTrip = () => {
                         id="days"
                         type="number"
                         value={days}
-                        onChange={(event) => setDays(Math.max(1, parseInt(event.target.value, 10) || 1))}
+                        onChange={(event) => {
+                          const next = Math.max(1, parseInt(event.target.value, 10) || 1);
+                          setDays(next);
+                          updateEndDateForDays(startDate, next);
+                        }}
                         className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-white shadow-[0_10px_25px_rgba(15,23,42,0.45)] outline-none transition focus:border-emerald-400/60 focus:bg-white/10"
                         min="1"
-                        max="21"
+                        max="30"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label htmlFor="start-date" className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+                        Departure date
+                      </label>
+                      <input
+                        id="start-date"
+                        type="date"
+                        value={startDate}
+                        min={todayIso}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setStartDate(value);
+                          updateEndDateForDays(value, days);
+                        }}
+                        className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-white shadow-[0_10px_25px_rgba(15,23,42,0.45)] outline-none transition focus:border-emerald-400/60 focus:bg-white/10"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="end-date" className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+                        Return date
+                      </label>
+                      <input
+                        id="end-date"
+                        type="date"
+                        value={endDate}
+                        min={startDate || todayIso}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-white shadow-[0_10px_25px_rgba(15,23,42,0.45)] outline-none transition focus:border-emerald-400/60 focus:bg-white/10"
                         required
                       />
                     </div>

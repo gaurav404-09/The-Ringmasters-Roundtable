@@ -62,3 +62,16 @@ export async function confirmTripItem(uid, tripId, itemId, bookingDetails = {}) 
 
   return handleResponse(response);
 }
+
+export async function confirmEntireTrip(uid, tripId, overrides = {}) {
+  const response = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(uid)}/trips/${encodeURIComponent(tripId)}/confirm-all`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ overrides }),
+  });
+
+  return handleResponse(response);
+}

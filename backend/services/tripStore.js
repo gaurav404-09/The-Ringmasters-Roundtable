@@ -66,6 +66,106 @@ const mergeBookingDetails = (existingDetails = {}, incomingDetails = {}) => {
   return merged;
 };
 
+const createRandomCode = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+const buildDummyBookingDetails = (activity = {}, overrides = {}) => {
+  return {
+    confirmationNumber: createRandomCode('CONF'),
+    referenceCode: createRandomCode('REF'),
+    price: activity?.cost ?? overrides?.price ?? 'TBD',
+    ...overrides,
+  };
+};
+
+const confirmActivitiesInDays = (days, overrides = {}) => {
+  if (!Array.isArray(days)) {
+    return { updated: false, days };
+  }
+
+  let updated = false;
+  const nextDays = days.map((day, dayIndex) => {
+    const dayId = deriveDayId(day, dayIndex);
+    if (!Array.isArray(day?.activities)) {
+      return day;
+    }
+
+    const nextActivities = day.activities.map((activity, activityIndex) => {
+      const generatedItemId = deriveActivityItemId(dayId, activity, activityIndex);
+      const normalized = normalizeActivity(activity, generatedItemId);
+      if (normalized.status !== 'confirmed' || !normalized.bookingDetails) {
+        updated = true;
+      }
+      return {
+        ...normalized,
+        status: 'confirmed',
+        bookingDetails: mergeBookingDetails(
+          normalized.bookingDetails || {},
+          buildDummyBookingDetails(normalized, overrides)
+        ),
+        confirmedAt: nowIsoString(),
+      };
+    });
+
+    return {
+      ...day,
+      id: day?.id || dayId,
+      activities: nextActivities,
+    };
+  });
+
+  return { updated, days: nextDays };
+};
+
+const applyFullTripConfirmation = (trip, overrides = {}) => {
+  if (!trip || typeof trip !== 'object') {
+    return { updated: false, trip };
+  }
+
+  const nextTrip = { ...trip };
+  let updated = trip.status !== 'confirmed';
+
+  if (Array.isArray(trip?.itinerary?.days)) {
+    const { updated: itineraryUpdated, days } = confirmActivitiesInDays(trip.itinerary.days, overrides);
+    if (itineraryUpdated) {
+      updated = true;
+      nextTrip.itinerary = { ...trip.itinerary, days };
+    }
+  }
+
+  if (Array.isArray(trip?.result?.itinerary)) {
+    const { updated: resultUpdated, days } = confirmActivitiesInDays(trip.result.itinerary, overrides);
+    if (resultUpdated) {
+      updated = true;
+      nextTrip.result = { ...trip.result, itinerary: days };
+    }
+  }
+
+  if (Array.isArray(trip?.days)) {
+    const { updated: directDaysUpdated, days } = confirmActivitiesInDays(trip.days, overrides);
+    if (directDaysUpdated) {
+      updated = true;
+      nextTrip.days = days;
+    }
+  }
+
+  if (!nextTrip.budget) {
+    nextTrip.budget = { planned: 'TBD', spent: 0 };
+  } else {
+    nextTrip.budget = {
+      planned: nextTrip.budget.planned ?? 'TBD',
+      spent: nextTrip.budget.spent ?? 0,
+    };
+  }
+
+  if (updated) {
+    nextTrip.status = 'confirmed';
+    nextTrip.confirmedAt = nowIsoString();
+    nextTrip.updatedAt = nowIsoString();
+  }
+
+  return { updated, trip: nextTrip };
+};
+
 const applyConfirmationToDays = (days, itemId, bookingDetails) => {
   if (!Array.isArray(days)) {
     return { updated: false, days };
@@ -174,6 +274,16 @@ export async function saveTripForUser(uid, tripPayload) {
     ...tripPayload,
   };
 
+  tripRecord.status = tripRecord.status || 'draft';
+  if (!tripRecord.budget || typeof tripRecord.budget !== 'object') {
+    tripRecord.budget = { planned: 'TBD', spent: 0 };
+  } else {
+    tripRecord.budget = {
+      planned: tripRecord.budget.planned ?? 'TBD',
+      spent: tripRecord.budget.spent ?? 0,
+    };
+  }
+
   const firestore = getFirestoreClient();
   if (firestore) {
     const userDocRef = firestore.collection(FIRESTORE_COLLECTION).doc(uid);
@@ -277,6 +387,60 @@ export async function confirmTripItemForUser(uid, tripId, itemId, bookingDetails
     throw new Error('Itinerary item not found');
   }
 
+  const nextTrips = [...userTrips];
+  nextTrips[tripIndex] = nextTrip;
+  store[uid] = nextTrips;
+  await writeStore(store);
+  return nextTrip;
+}
+
+export async function confirmEntireTripForUser(uid, tripId, overrides = {}) {
+  if (!uid || !tripId) {
+    throw new Error('Missing required parameters');
+  }
+
+  const firestore = getFirestoreClient();
+  if (firestore) {
+    const userDocRef = firestore.collection(FIRESTORE_COLLECTION).doc(uid);
+    let updatedTrip = null;
+    await firestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(userDocRef);
+      const existingTrips = snapshot.exists ? snapshot.data()?.trips || [] : [];
+      const tripIndex = existingTrips.findIndex((trip) => trip.id === tripId);
+      if (tripIndex < 0) {
+        throw new Error('Trip not found');
+      }
+
+      const currentTrip = existingTrips[tripIndex];
+      const { updated, trip: nextTrip } = applyFullTripConfirmation(currentTrip, overrides);
+      if (!updated) {
+        // even if nothing changed we still return the trip for consistency
+        updatedTrip = nextTrip;
+        return;
+      }
+
+      const nextTrips = [...existingTrips];
+      nextTrips[tripIndex] = nextTrip;
+      transaction.set(userDocRef, { trips: nextTrips }, { merge: true });
+      updatedTrip = nextTrip;
+    });
+
+    if (!updatedTrip) {
+      throw new Error('Trip not found');
+    }
+
+    return updatedTrip;
+  }
+
+  const store = await readStore();
+  const userTrips = store[uid] || [];
+  const tripIndex = userTrips.findIndex((trip) => trip.id === tripId);
+  if (tripIndex < 0) {
+    throw new Error('Trip not found');
+  }
+
+  const currentTrip = userTrips[tripIndex];
+  const { trip: nextTrip } = applyFullTripConfirmation(currentTrip, overrides);
   const nextTrips = [...userTrips];
   nextTrips[tripIndex] = nextTrip;
   store[uid] = nextTrips;

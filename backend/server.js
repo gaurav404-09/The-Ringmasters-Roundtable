@@ -158,6 +158,8 @@ io.on('connection', (socket) => {
             payload: {
                 start_city: data.start_city,
                 end_city: data.end_city,
+                start_date: data.start_date,
+                end_date: data.end_date,
                 num_days: parseInt(data.num_days, 10),
             },
         };

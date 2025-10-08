@@ -4,6 +4,7 @@ import {
   saveTripForUser,
   deleteTripForUser,
   confirmTripItemForUser,
+  confirmEntireTripForUser,
 } from '../services/tripStore.js';
 
 const router = express.Router();
@@ -19,6 +20,24 @@ router.get('/:uid/trips', async (req, res) => {
   } catch (error) {
     console.error('[GET /api/users/:uid/trips] error:', error);
     res.status(500).json({ success: false, error: error.message || 'Failed to fetch trips' });
+  }
+});
+
+router.post('/:uid/trips/:tripId/confirm-all', async (req, res) => {
+  const { uid, tripId } = req.params;
+  const { overrides } = req.body || {};
+
+  try {
+    if (!uid || !tripId) {
+      return res.status(400).json({ error: 'User id and trip id are required' });
+    }
+
+    const updatedTrip = await confirmEntireTripForUser(uid, tripId, overrides || {});
+    res.json({ success: true, trip: updatedTrip });
+  } catch (error) {
+    console.error('[POST /api/users/:uid/trips/:tripId/confirm-all] error:', error);
+    const status = error.message === 'Trip not found' ? 404 : 500;
+    res.status(status).json({ success: false, error: error.message || 'Failed to confirm trip' });
   }
 });
 
