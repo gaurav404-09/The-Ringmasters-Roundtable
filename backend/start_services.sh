@@ -15,18 +15,28 @@ source venv/bin/activate
 
 # Function to start a service in a new terminal window
 start_service() {
-    osascript -e "tell app \"Terminal\" to do script \"cd '$(pwd)' && source venv/bin/activate && python $1"
+    local name=$1
+    local script=$2
+    echo "Starting $name..."
+    osascript <<EOD
+tell application "Terminal"
+    do script "cd '$PWD' && source venv/bin/activate && python $script"
+    set currentTab to the result
+    set custom title of currentTab to "$name"
+end tell
+EOD
+    sleep 1
 }
 
 # Start all agents in separate terminal windows
 echo "Starting orchestrator and agents..."
-start_service "orchestrator_mcp.py"
-start_service "map_agent_mcp.py"
-start_service "weather_agent_mcp.py"
-start_service "itinerary_agent_mcp.py"
-start_service "event_agent_mcp.py"
+start_service "Orchestrator" "orchestrator_mcp.py"
+start_service "Map Agent" "map_agent_mcp.py"
+start_service "Weather Agent" "weather_agent_mcp.py"
+start_service "Itinerary Agent" "itinerary_agent_mcp.py"
+start_service "Event Agent" "event_agent_mcp.py"
 
-# Start the Node.js server
+# Start the Node.js server in the current terminal
 echo "Starting Node.js server..."
 cd ..
 nodemon server.js

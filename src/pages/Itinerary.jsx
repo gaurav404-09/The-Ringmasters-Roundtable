@@ -1,412 +1,235 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ENV from '../config/env';
 
 const { API_BASE_URL } = ENV;
-import { FaCalendarAlt, FaMapMarkerAlt, FaUtensils, FaBed, FaPlane, FaWalking, FaTrain, FaBus, FaShip, FaShoppingBag, FaLandmark, FaCamera, FaEllipsisH, FaDollarSign, FaPlus } from 'react-icons/fa';
+import { FaCalendarAlt, FaMapMarkerAlt, FaUtensils, FaBed, FaPlane, FaWalking, FaTrain, FaBus, FaShip, FaShoppingBag, FaLandmark, FaCamera, FaEllipsisH, FaDollarSign, FaPlus, FaRoute } from 'react-icons/fa';
 import { BsSunrise, BsSunset } from 'react-icons/bs';
 import ItineraryGenerator from '../components/ItineraryGenerator';
+import { toast } from 'react-toastify';
+import { useAuth } from '../context/AuthContext';
+import { saveUserTrip } from '../lib/apiClient';
 
 const Itinerary = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(1);
   const [currentItinerary, setCurrentItinerary] = useState(null);
-  const [showGenerator, setShowGenerator] = useState(false);
-  
-  // Mock itinerary data (fallback only)
-  const mockItineraryData = {
-    destination: 'Bali, Indonesia',
-    duration: '5 days',
-    travelDates: 'June 15 - 20, 2023',
-    travelers: 2,
-    budget: '$$$',
-    days: [
-      {
-        id: 1,
-        date: 'June 15, 2023',
-        title: 'Arrival & Beach Time',
-        activities: [
-          {
-            id: 1,
-            time: '14:00',
-            title: 'Arrive at Ngurah Rai International Airport',
-            type: 'flight',
-            icon: <FaPlane className="text-blue-500" />,
-            location: 'Denpasar Airport (DPS)',
-            notes: 'Flight from Singapore (SIN) to Denpasar (DPS)',
-            duration: '2h 30m',
-            bookingRef: 'SQ 938',
-            status: 'confirmed'
-          },
-          {
-            id: 2,
-            time: '15:30',
-            title: 'Transfer to Hotel',
-            type: 'transfer',
-            icon: <FaBus className="text-green-500" />,
-            location: 'The Legian Bali',
-            notes: 'Private transfer arranged by hotel',
-            duration: '30m',
-            status: 'confirmed'
-          },
-          {
-            id: 3,
-            time: '16:30',
-            title: 'Check-in & Relax',
-            type: 'hotel',
-            icon: <FaBed className="text-purple-500" />,
-            location: 'The Legian Bali',
-            notes: 'Ocean View Suite with breakfast included',
-            bookingRef: 'RES# 4587921',
-            status: 'confirmed'
-          },
-          {
-            id: 4,
-            time: '18:30',
-            title: 'Dinner at La Lucciola',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'La Lucciola, Petitenget',
-            notes: 'Seaside Italian restaurant with romantic ambiance',
-            duration: '2h',
-            price: '$$$',
-            status: 'reserved',
-            reservationTime: '18:30',
-            partySize: 2
-          },
-          {
-            id: 5,
-            time: '20:30',
-            title: 'Evening Walk at Seminyak Beach',
-            type: 'activity',
-            icon: <FaWalking className="text-amber-500" />,
-            location: 'Seminyak Beach',
-            notes: 'Watch the sunset and enjoy the beach clubs',
-            duration: '1h',
-            price: 'Free'
+  const [showGenerator, setShowGenerator] = useState(true);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState(null);
+
+  // Get current location when component mounts
+  useEffect(() => {
+    const getLocation = async () => {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error('Geolocation is not supported by your browser'));
+          } else {
+            navigator.geolocation.getCurrentPosition(resolve, reject);
           }
-        ]
-      },
-      {
-        id: 2,
-        date: 'June 16, 2023',
-        title: 'Ubud Cultural Tour',
-        activities: [
-          {
-            id: 1,
-            time: '08:00',
-            title: 'Breakfast at Hotel',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'The Legian Bali',
-            notes: 'Complimentary breakfast for hotel guests',
-            duration: '1h'
-          },
-          {
-            id: 2,
-            time: '09:00',
-            title: 'Private Tour to Ubud',
-            type: 'tour',
-            icon: <FaBus className="text-green-500" />,
-            location: 'Ubud',
-            notes: 'Private car with English-speaking guide',
-            duration: '10h',
-            price: '$85',
-            includes: ['Hotel pickup/drop-off', 'Entrance fees', 'Bottled water']
-          },
-          {
-            id: 3,
-            time: '10:30',
-            title: 'Tegallalang Rice Terraces',
-            type: 'sightseeing',
-            icon: <FaCamera className="text-green-600" />,
-            location: 'Tegallalang',
-            notes: 'Famous rice terraces with beautiful views',
-            duration: '1h 30m',
-            price: 'IDR 25,000'
-          },
-          {
-            id: 4,
-            time: '12:30',
-            title: 'Lunch at Locavore',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'Locavore, Ubud',
-            notes: 'Award-winning restaurant focusing on local ingredients',
-            duration: '1h 30m',
-            price: '$$$$',
-            status: 'reserved',
-            reservationTime: '12:30',
-            partySize: 2
-          },
-          {
-            id: 5,
-            time: '14:30',
-            title: 'Sacred Monkey Forest',
-            type: 'sightseeing',
-            icon: <FaWalking className="text-amber-500" />,
-            location: 'Ubud Monkey Forest',
-            notes: 'Sanctuary for long-tailed macaques',
-            duration: '1h',
-            price: 'IDR 80,000'
-          },
-          {
-            id: 6,
-            time: '16:00',
-            title: 'Ubud Palace & Market',
-            type: 'sightseeing',
-            icon: <FaLandmark className="text-blue-500" />,
-            location: 'Ubud Center',
-            notes: 'Traditional market and historical palace',
-            duration: '1h 30m',
-            price: 'Free (donation)'
-          },
-          {
-            id: 7,
-            time: '19:00',
-            title: 'Dinner at Mozaic',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'Mozaic, Ubud',
-            notes: 'Fine dining with tasting menus',
-            duration: '2h',
-            price: '$$$$',
-            status: 'reserved',
-            reservationTime: '19:00',
-            partySize: 2
-          }
-        ]
-      },
-      {
-        id: 3,
-        date: 'June 17, 2023',
-        title: 'Nusa Penida Island Tour',
-        activities: [
-          {
-            id: 1,
-            time: '06:00',
-            title: 'Early Breakfast',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'The Legian Bali',
-            notes: 'Early breakfast before departure',
-            duration: '30m'
-          },
-          {
-            id: 2,
-            time: '07:00',
-            title: 'Transfer to Sanur Port',
-            type: 'transfer',
-            icon: <FaBus className="text-green-500" />,
-            location: 'Sanur',
-            notes: 'Shared transfer to port',
-            duration: '45m',
-            price: 'Included in tour'
-          },
-          {
-            id: 3,
-            time: '08:00',
-            title: 'Speedboat to Nusa Penida',
-            type: 'boat',
-            icon: <FaShip className="text-blue-500" />,
-            location: 'Sanur to Nusa Penida',
-            notes: 'Fast boat crossing',
-            duration: '45m',
-            operator: 'Scoot Cruises',
-            bookingRef: 'SC78945'
-          },
-          {
-            id: 4,
-            time: '09:00',
-            title: 'West Nusa Penida Tour',
-            type: 'tour',
-            icon: <FaCamera className="text-green-600" />,
-            location: 'Nusa Penida',
-            notes: 'Visit Kelingking Beach, Broken Beach, Angel\'s Billabong',
-            duration: '8h',
-            price: '$75',
-            includes: ['Private car', 'Driver/guide', 'Lunch', 'Entrance fees']
-          },
-          {
-            id: 5,
-            time: '17:00',
-            title: 'Return to Bali',
-            type: 'boat',
-            icon: <FaShip className="text-blue-500" />,
-            location: 'Nusa Penida to Sanur',
-            notes: 'Last boat back to mainland',
-            duration: '45m'
-          },
-          {
-            id: 6,
-            time: '18:30',
-            title: 'Dinner at Merah Putih',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'Merah Putih, Seminyak',
-            notes: 'Modern Indonesian cuisine in a stunning setting',
-            duration: '2h',
-            price: '$$$',
-            status: 'reserved',
-            reservationTime: '18:30',
-            partySize: 2
-          }
-        ]
-      },
-      {
-        id: 4,
-        date: 'June 18, 2023',
-        title: 'Beach Club & Spa Day',
-        activities: [
-          {
-            id: 1,
-            time: '08:00',
-            title: 'Yoga Session',
-            type: 'activity',
-            icon: <FaWalking className="text-amber-500" />,
-            location: 'The Legian Bali',
-            notes: 'Beachfront yoga class',
-            duration: '1h',
-            price: 'Included in stay'
-          },
-          {
-            id: 2,
-            time: '10:00',
-            title: 'Spa Treatment',
-            type: 'activity',
-            icon: <FaBed className="text-purple-500" />,
-            location: 'The Legian Spa',
-            notes: 'Balinese massage (90 mins)',
-            duration: '2h',
-            price: 'IDR 1,200,000',
-            status: 'booked',
-            bookingTime: '10:00'
-          },
-          {
-            id: 3,
-            time: '12:30',
-            title: 'Lunch at The Restaurant',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'The Legian Bali',
-            notes: 'Poolside dining',
-            duration: '1h 30m',
-            price: '$$$'
-          },
-          {
-            id: 4,
-            time: '14:00',
-            title: 'Beach Club Afternoon',
-            type: 'activity',
-            icon: <BsSunset className="text-orange-500" />,
-            location: 'Potato Head Beach Club',
-            notes: 'Daybed reservation',
-            duration: '4h',
-            price: 'IDR 1,500,000 (minimum spend)',
-            status: 'reserved',
-            bookingTime: '14:00',
-            partySize: 2
-          },
-          {
-            id: 5,
-            time: '19:30',
-            title: 'Dinner at Metis',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'Metis, Seminyak',
-            notes: 'French-Mediterranean cuisine in a beautiful garden setting',
-            duration: '2h',
-            price: '$$$$',
-            status: 'reserved',
-            reservationTime: '19:30',
-            partySize: 2
-          }
-        ]
-      },
-      {
-        id: 5,
-        date: 'June 19, 2023',
-        title: 'Departure Day',
-        activities: [
-          {
-            id: 1,
-            time: '06:00',
-            title: 'Sunrise at Tanah Lot',
-            type: 'sightseeing',
-            icon: <BsSunrise className="text-yellow-500" />,
-            location: 'Tanah Lot Temple',
-            notes: 'Famous sea temple, less crowded at sunrise',
-            duration: '2h',
-            price: 'IDR 60,000'
-          },
-          {
-            id: 2,
-            time: '09:00',
-            title: 'Breakfast & Check-out',
-            type: 'hotel',
-            icon: <FaBed className="text-purple-500" />,
-            location: 'The Legian Bali',
-            notes: 'Late check-out until 12:00',
-            duration: '1h'
-          },
-          {
-            id: 3,
-            time: '10:00',
-            title: 'Last-minute Shopping',
-            type: 'shopping',
-            icon: <FaShoppingBag className="text-pink-500" />,
-            location: 'Seminyak Village',
-            notes: 'Boutique shopping in Seminyak',
-            duration: '2h',
-            price: '$$$'
-          },
-          {
-            id: 4,
-            time: '12:30',
-            title: 'Lunch at Sea Circus',
-            type: 'meal',
-            icon: <FaUtensils className="text-red-500" />,
-            location: 'Sea Circus, Seminyak',
-            notes: 'Vibrant restaurant with international menu',
-            duration: '1h 30m',
-            price: '$$'
-          },
-          {
-            id: 5,
-            time: '14:30',
-            title: 'Transfer to Airport',
-            type: 'transfer',
-            icon: <FaBus className="text-green-500" />,
-            location: 'Ngurah Rai International Airport',
-            notes: 'Private transfer',
-            duration: '30m',
-            price: 'IDR 350,000',
-            status: 'confirmed'
-          },
-          {
-            id: 6,
-            time: '16:30',
-            title: 'Flight Departure',
-            type: 'flight',
-            icon: <FaPlane className="text-blue-500" />,
-            location: 'Ngurah Rai International (DPS)',
-            notes: 'Flight DPS to SIN',
-            duration: '2h 30m',
-            airline: 'Singapore Airlines',
-            flightNumber: 'SQ 939',
-            status: 'confirmed',
-            checkIn: 'Online check-in opens 48h before flight'
-          }
-        ]
+        });
+        
+        const { latitude, longitude } = position.coords;
+        setCurrentLocation(`${latitude},${longitude}`);
+      } catch (error) {
+        console.error('Error getting current location:', error);
+        toast.warn('Could not get your current location. You can still get directions by entering your starting point manually.');
       }
-    ]
+    };
+
+    getLocation();
+  }, []);
+
+  const handleGetDirections = async () => {
+    if (!currentItinerary?.destination) return;
+    
+    // If we already have the current location, use it
+    if (currentLocation) {
+      navigate('/routes', {
+        state: {
+          from: currentLocation,
+          to: currentItinerary.destination
+        }
+      });
+      return;
+    }
+    
+    // Otherwise, try to get the current location
+    setIsGettingLocation(true);
+    
+    try {
+      const position = await new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation is not supported by your browser'));
+        } else {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        }
+      });
+      
+      const { latitude, longitude } = position.coords;
+      const locationString = `${latitude},${longitude}`;
+      setCurrentLocation(locationString);
+      
+      // Navigate to Routes page with location data
+      navigate('/routes', {
+        state: {
+          from: locationString,
+          to: currentItinerary.destination
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error getting location:', error);
+      toast.error('Could not get your location. You can still get directions by entering your starting point manually.');
+      
+      // If location access is denied, still navigate but with only the destination
+      navigate('/routes', {
+        state: {
+          to: currentItinerary.destination
+        }
+      });
+    } finally {
+      setIsGettingLocation(false);
+    }
   };
   
-  const displayItinerary = currentItinerary || mockItineraryData;
-  const selectedDay = displayItinerary.days?.find(day => day.id === activeDay) || displayItinerary.days?.[0];
+  const displayItinerary = currentItinerary;
+  const days = Array.isArray(displayItinerary?.days) ? displayItinerary.days : [];
 
-  const handleItineraryGenerated = (newItinerary) => {
-    setCurrentItinerary(newItinerary);
+  const accommodations = useMemo(() => {
+    const stays = [];
+    const seen = new Set();
+    days.forEach((day) => {
+      (day.activities || []).forEach((activity) => {
+        if (activity?.type === 'hotel' && activity.title) {
+          const key = activity.title.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            stays.push({
+              title: activity.title,
+              location: activity.location,
+              notes: activity.notes,
+              dayId: day.id,
+              time: activity.time,
+            });
+          }
+        }
+      });
+    });
+    return stays;
+  }, [days]);
+
+  const topAttractions = useMemo(() => {
+    const attractions = [];
+    const seen = new Set();
+    const attractionTypes = new Set(['sightseeing', 'tour', 'activity']);
+    days.forEach((day) => {
+      (day.activities || []).forEach((activity) => {
+        if (activity?.title && attractionTypes.has(activity.type)) {
+          const key = activity.title.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            attractions.push({
+              title: activity.title,
+              location: activity.location,
+              notes: activity.notes,
+              dayId: day.id,
+              time: activity.time,
+            });
+          }
+        }
+      });
+    });
+    return attractions;
+  }, [days]);
+
+  const transportSegments = useMemo(() => {
+    const relevantTypes = new Set(['flight', 'transfer', 'boat', 'train', 'bus', 'walking']);
+    const segments = [];
+    days.forEach((day) => {
+      (day.activities || []).forEach((activity) => {
+        if (activity?.title && relevantTypes.has(activity.type)) {
+          segments.push({
+            title: activity.title,
+            location: activity.location,
+            notes: activity.notes,
+            dayId: day.id,
+            time: activity.time,
+            type: activity.type,
+          });
+        }
+      });
+    });
+    return segments;
+  }, [days]);
+
+  const quickStats = useMemo(() => {
+    let activities = 0;
+    let reservations = 0;
+    let dining = 0;
+    days.forEach((day) => {
+      (day.activities || []).forEach((activity) => {
+        activities += 1;
+        if (['reserved', 'booked', 'confirmed'].includes((activity.status || '').toLowerCase())) {
+          reservations += 1;
+        }
+        if (activity.type === 'meal') {
+          dining += 1;
+        }
+      });
+    });
+    return {
+      activities,
+      reservations,
+      dining,
+      attractions: topAttractions.length,
+      days: days.length,
+    };
+  }, [days, topAttractions.length]);
+
+  const selectedDay = days.find(day => day.id === activeDay) || days[0] || null;
+
+  const handleItineraryGenerated = async (payload) => {
+    const { itinerary: generatedItinerary, request, generatedAt } = payload || {};
+    const itinerary = generatedItinerary || payload;
+
+    setCurrentItinerary(itinerary);
     setShowGenerator(false);
     setActiveDay(1);
+
+    if (!user?.uid || !itinerary) {
+      if (!user?.uid) {
+        toast.warn('Sign in to save this itinerary to your command center.');
+      }
+      return;
+    }
+
+    try {
+      const tripRecord = {
+        id: itinerary.id,
+        title: `${itinerary.destination} • ${itinerary.duration || `${(itinerary.days || []).length} days`}`,
+        destination: itinerary.destination,
+        travelers: itinerary.travelers,
+        budget: itinerary.budget,
+        startDate: request?.startDate,
+        endDate: request?.endDate,
+        request,
+        itinerary,
+        generatedAt: generatedAt || new Date().toISOString(),
+      };
+
+      const response = await saveUserTrip(user.uid, tripRecord);
+      if (response?.success) {
+        toast.success('Itinerary saved to your command center.');
+      } else if (response?.trip) {
+        toast.success('Itinerary saved to your command center.');
+      }
+    } catch (error) {
+      console.error('Failed to save itinerary:', error);
+      toast.error('We generated your itinerary but could not save it. Try again later.');
+    }
   };
   
   const getActivityIcon = (type) => {
@@ -451,6 +274,13 @@ const Itinerary = () => {
     );
   };
 
+  const formatLabel = (value) => {
+    if (!value || typeof value !== 'string') return '';
+    return value
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+
   if (showGenerator) {
     return <ItineraryGenerator onItineraryGenerated={handleItineraryGenerated} />;
   }
@@ -468,41 +298,61 @@ const Itinerary = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-light to-gray-100 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.28),_transparent_60%)]"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(236,72,153,0.18),_transparent_65%)]"
+        aria-hidden="true"
+      />
+      <main className="relative mx-auto max-w-6xl px-4 pb-16 pt-20 sm:px-8 lg:px-12">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-display font-bold text-dark">
+            <h1 className="text-3xl md:text-4xl font-display font-bold text-white">
               {displayItinerary.destination}
             </h1>
-            <p className="text-gray-600">
-              {displayItinerary.travelDates} • {displayItinerary.duration} • {displayItinerary.travelers} {displayItinerary.travelers > 1 ? 'Travelers' : 'Traveler'}
+            <p className="text-sm text-white/70">
+              {displayItinerary.travelDates} • {displayItinerary.duration} • {displayItinerary.travelers}{' '}
+              {displayItinerary.travelers > 1 ? 'Travelers' : 'Traveler'}
             </p>
           </div>
-          <div className="flex gap-3 mt-4 md:mt-0">
-            <button 
+          <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
+            <button
+              onClick={handleGetDirections}
+              disabled={isGettingLocation}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/15 disabled:opacity-40"
+            >
+              <FaRoute className="text-sm" />
+              {isGettingLocation ? 'Getting Directions...' : 'Get Directions'}
+            </button>
+            <button
               onClick={() => setShowGenerator(true)}
-              className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 via-emerald-300 to-white px-5 py-2 text-sm font-semibold text-slate-900 shadow-[0_18px_38px_rgba(16,185,129,0.35)] transition hover:-translate-y-0.5"
             >
               <FaPlus className="text-sm" />
-              Create New Itinerary
+              New Itinerary
             </button>
-            <button className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
-              Print Itinerary
+            <button className="inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-2 text-sm font-semibold text-white/80 transition hover:border-white/40 hover:text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print
             </button>
           </div>
         </div>
-        
+
         {/* Day Selector */}
         <div className="flex overflow-x-auto pb-2 mb-6 -mx-2">
           {displayItinerary.days.map((day) => (
             <button
               key={day.id}
               onClick={() => setActiveDay(day.id)}
-              className={`flex flex-col items-center justify-center px-6 py-3 mx-1 rounded-lg transition-colors ${
+              className={`flex flex-col items-center justify-center px-6 py-3 mx-1 rounded-lg border transition-colors ${
                 activeDay === day.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  ? 'border-emerald-400/80 bg-emerald-400 text-slate-900 shadow-[0_18px_38px_rgba(16,185,129,0.35)]'
+                  : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white'
               }`}
             >
               <span className="text-sm font-medium">Day {day.id}</span>
@@ -512,10 +362,10 @@ const Itinerary = () => {
             </button>
           ))}
         </div>
-        
+
         {/* Itinerary Card */}
-        <div className="bg-white rounded-xl shadow-xl overflow-hidden mb-8">
-          <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_26px_70px_rgba(15,23,42,0.45)] backdrop-blur mb-8">
+          <div className="p-6 bg-gradient-to-r from-blue-600/80 via-indigo-600/80 to-slate-900/80 text-white">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
               <div>
                 <h2 className="text-2xl font-bold">Day {selectedDay.id}: {selectedDay.title}</h2>
@@ -533,21 +383,21 @@ const Itinerary = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Activity Timeline */}
           <div className="p-6">
             <div className="relative">
               {/* Timeline line */}
-              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-              
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-white/10"></div>
+
               {selectedDay.activities.map((activity, index) => (
                 <div key={activity.id} className="relative pl-12 pb-6 group">
                   {/* Timeline dot */}
-                  <div className="absolute left-0 w-8 h-8 rounded-full bg-white border-4 border-blue-500 flex items-center justify-center z-10">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <div className="absolute left-0 w-8 h-8 rounded-full border-4 border-emerald-400/70 bg-slate-950 flex items-center justify-center z-10">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
                   </div>
-                  
-                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+
+                  <div className="rounded-xl border border-white/10 bg-slate-950/70 shadow-[0_16px_40px_rgba(15,23,42,0.45)] transition-shadow">
                     <div className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start">
@@ -556,56 +406,56 @@ const Itinerary = () => {
                           </div>
                           <div>
                             <div className="flex items-center">
-                              <h3 className="font-medium text-gray-900">{activity.title}</h3>
+                              <h3 className="font-medium text-white">{activity.title}</h3>
                               {getStatusBadge(activity.status)}
                             </div>
                             {activity.location && (
-                              <div className="flex items-center text-sm text-gray-500 mt-1">
-                                <FaMapMarkerAlt className="mr-1 text-xs" />
+                              <div className="flex items-center text-sm text-white/60 mt-1">
+                                <FaMapMarkerAlt className="mr-1 text-xs text-white/50" />
                                 <span>{activity.location}</span>
                               </div>
                             )}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium text-gray-900">{activity.time}</div>
+                          <div className="font-medium text-white">{activity.time}</div>
                           {activity.duration && (
-                            <div className="text-xs text-gray-500">{activity.duration}</div>
+                            <div className="text-xs text-white/60">{activity.duration}</div>
                           )}
                         </div>
                       </div>
-                      
+
                       {activity.notes && (
-                        <div className="mt-2 text-sm text-gray-600">
+                        <div className="mt-2 text-sm text-white/70">
                           {activity.notes}
                         </div>
                       )}
-                      
+
                       {/* Additional details */}
                       {(activity.price || activity.bookingRef || activity.includes) && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 text-sm">
+                        <div className="mt-3 pt-3 border-t border-white/10 text-sm text-white/70">
                           {activity.price && (
-                            <div className="flex items-center text-gray-700 mb-1">
-                              <FaDollarSign className="mr-2 text-gray-500" />
+                            <div className="flex items-center mb-1">
+                              <FaDollarSign className="mr-2 text-white/50" />
                               <span>Price: {activity.price}</span>
                             </div>
                           )}
-                          
+
                           {activity.bookingRef && (
-                            <div className="flex items-center text-gray-700 mb-1">
-                              <span className="text-gray-500 mr-2">Ref:</span>
+                            <div className="flex items-center mb-1">
+                              <span className="text-white/50 mr-2">Ref:</span>
                               <span>{activity.bookingRef}</span>
                             </div>
                           )}
-                          
+
                           {activity.includes && (
                             <div className="mt-2">
-                              <div className="text-xs font-medium text-gray-500 mb-1">INCLUDES:</div>
+                              <div className="text-xs font-medium text-white/60 mb-1">INCLUDES:</div>
                               <ul className="space-y-1">
                                 {activity.includes.map((item, i) => (
                                   <li key={i} className="flex items-center">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2"></span>
-                                    <span className="text-gray-700">{item}</span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2"></span>
+                                    <span>{item}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -614,13 +464,13 @@ const Itinerary = () => {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Action buttons */}
-                    <div className="bg-gray-50 px-4 py-2 rounded-b-lg flex justify-end space-x-2">
-                      <button className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded">
+                    <div className="bg-slate-900/80 px-4 py-2 rounded-b-lg flex justify-end space-x-2">
+                      <button className="px-3 py-1 text-sm text-white/80 hover:text-white hover:bg-white/10 rounded">
                         Edit
                       </button>
-                      <button className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded">
+                      <button className="px-3 py-1 text-sm text-white/80 hover:text-white hover:bg-white/10 rounded">
                         View Details
                       </button>
                     </div>
@@ -630,90 +480,170 @@ const Itinerary = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Trip Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="font-semibold text-lg mb-3">Accommodation</h3>
-            <div className="flex items-start">
-              <div className="bg-blue-100 p-3 rounded-lg mr-4">
-                <FaBed className="text-blue-600 text-xl" />
-              </div>
-              <div>
-                <h4 className="font-medium">The Legian Bali</h4>
-                <p className="text-sm text-gray-600">4 nights • Ocean View Suite</p>
-                <p className="text-sm text-gray-600">Check-in: Jun 15 • Check-out: Jun 19</p>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.45)] backdrop-blur">
+            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2 text-white">
+              <FaBed className="text-emerald-300" />
+              Stays & Check-ins
+            </h3>
+            {accommodations.length > 0 ? (
+              <ul className="space-y-3">
+                {accommodations.slice(0, 3).map((stay) => (
+                  <li key={`${stay.dayId}-${stay.title}`} className="flex items-start">
+                    <div className="bg-white/10 p-3 rounded-lg mr-4">
+                      <FaBed className="text-emerald-300 text-xl" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-white">{stay.title}</h4>
+                      {stay.location && (
+                        <p className="text-sm text-white/60">{stay.location}</p>
+                      )}
+                      <p className="text-xs text-white/50 mt-1">
+                        Day {stay.dayId}
+                        {stay.time ? ` • ${stay.time}` : ''}
+                      </p>
+                      {stay.notes && (
+                        <p className="text-xs text-white/55 mt-1">{stay.notes}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-white/60">
+                We’ll surface your accommodations here as soon as lodging details are added to the plan.
+              </p>
+            )}
           </div>
-          
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="font-semibold text-lg mb-3">Transportation</h3>
-            <div className="space-y-3">
-              <div className="flex items-start">
-                <div className="bg-green-100 p-2 rounded-lg mr-3">
-                  <FaPlane className="text-green-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium">Flight</h4>
-                  <p className="text-sm text-gray-600">SIN → DPS • Jun 15</p>
-                  <p className="text-sm text-gray-600">SQ 938 • 2h 30m</p>
-                </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.45)] backdrop-blur">
+            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2 text-white">
+              <FaRoute className="text-sky-300" />
+              Transport Highlights
+            </h3>
+            {transportSegments.length > 0 ? (
+              <div className="space-y-3">
+                {transportSegments.slice(0, 4).map((segment) => (
+                  <div key={`${segment.dayId}-${segment.title}`} className="flex items-start">
+                    <div className="bg-white/10 p-2 rounded-lg mr-3">
+                      {getActivityIcon(segment.type)}
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-white">{segment.title}</h4>
+                      {segment.location && (
+                        <p className="text-sm text-white/60">{segment.location}</p>
+                      )}
+                      <p className="text-xs text-white/50 mt-1">
+                        Day {segment.dayId}
+                        {segment.time ? ` • ${segment.time}` : ''}
+                      </p>
+                      {segment.notes && (
+                        <p className="text-xs text-white/50 mt-1">{segment.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-start">
-                <div className="bg-green-100 p-2 rounded-lg mr-3">
-                  <FaPlane className="text-green-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium">Flight</h4>
-                  <p className="text-sm text-gray-600">DPS → SIN • Jun 19</p>
-                  <p className="text-sm text-gray-600">SQ 939 • 2h 30m</p>
-                </div>
-              </div>
-            </div>
+            ) : (
+              <p className="text-sm text-white/60">
+                Travel segments will appear here when flights, transfers, or local transport are part of your itinerary.
+              </p>
+            )}
           </div>
-          
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="font-semibold text-lg mb-3">Quick Stats</h3>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.45)] backdrop-blur">
+            <h3 className="font-semibold text-lg mb-3 text-white">Quick Stats</h3>
             <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Activities:</span>
-                <span className="font-medium">12</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/60">Days Planned:</span>
+                <span className="font-semibold text-white">{quickStats.days}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Reservations:</span>
-                <span className="font-medium">5</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/60">Activities:</span>
+                <span className="font-semibold text-white">{quickStats.activities}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Estimated Cost:</span>
-                <span className="font-medium">$2,800</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/60">Reservations:</span>
+                <span className="font-semibold text-white">{quickStats.reservations}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Distance:</span>
-                <span className="font-medium">1,650 km</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/60">Dining Spots:</span>
+                <span className="font-semibold text-white">{quickStats.dining}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-white/60">Featured Attractions:</span>
+                <span className="font-semibold text-white">{quickStats.attractions}</span>
               </div>
             </div>
           </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white shadow-[0_18px_45px_rgba(15,23,42,0.45)] backdrop-blur md:col-span-2 xl:col-span-2">
+            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+              <FaLandmark className="text-indigo-300" />
+              Must-Visit Attractions
+            </h3>
+            {topAttractions.length > 0 ? (
+              <ul className="space-y-3">
+                {topAttractions.slice(0, 6).map((attraction) => (
+                  <li
+                    key={`${attraction.dayId}-${attraction.title}`}
+                    className="border border-white/10 rounded-lg p-3 bg-slate-950/60"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-white">{attraction.title}</span>
+                      <span className="rounded-full border border-white/20 px-2 py-0.5 text-[11px] uppercase tracking-widest text-white/70">
+                        {formatLabel(attraction.type) || 'Attraction'}
+                      </span>
+                    </div>
+                    {attraction.location && (
+                      <div className="flex items-center text-xs text-white/60 mt-2">
+                        <FaMapMarkerAlt className="mr-1" />
+                        <span>{attraction.location}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-white/60">
+                      {attraction.time && <span>{attraction.time}</span>}
+                    </div>
+                    {attraction.notes && (
+                      <p className="text-xs text-white/70 mt-2">{attraction.notes}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-white/60">
+                Add your interests and we’ll highlight the must-see attractions for each day of your trip right here.
+              </p>
+            )}
+          </div>
         </div>
-        
+
         {/* Map Placeholder */}
-        <div className="bg-white rounded-xl shadow-xl p-6 mb-8">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 mb-8 shadow-[0_26px_70px_rgba(15,23,42,0.45)] backdrop-blur">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Trip Map</h2>
+            <h2 className="text-xl font-bold text-white">Trip Map</h2>
             <div className="flex space-x-2">
-              <button className="px-3 py-1 text-sm bg-gray-100 rounded-lg">Day 1</button>
-              <button className="px-3 py-1 text-sm bg-gray-100 rounded-lg">Day 2</button>
-              <button className="px-3 py-1 text-sm bg-gray-100 rounded-lg">Full Trip</button>
+              <button className="px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70 border border-white/15 rounded-lg hover:border-white/40 hover:text-white">
+                Day 1
+              </button>
+              <button className="px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70 border border-white/15 rounded-lg hover:border-white/40 hover:text-white">
+                Day 2
+              </button>
+              <button className="px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70 border border-white/15 rounded-lg hover:border-white/40 hover:text-white">
+                Full Trip
+              </button>
             </div>
           </div>
-          <div className="bg-gray-200 rounded-xl h-64 flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <div className="text-4xl mb-2">🗺️</div>
-              <p>Interactive map will be displayed here</p>
+          <div className="rounded-xl border border-white/10 h-64 flex items-center justify-center bg-slate-950/70 text-white/40">
+            <div className="text-center space-y-2">
+              <div className="text-4xl">🗺️</div>
+              <p className="text-sm uppercase tracking-[0.35em]">Interactive map placeholder</p>
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

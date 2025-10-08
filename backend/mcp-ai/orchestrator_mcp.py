@@ -99,7 +99,6 @@ class Orchestrator:
             payload = message.get("payload")
 
             if trip_id not in self.trip_states:
-                ch.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
             if intent == "RouteCalculated":
@@ -216,4 +215,3 @@ class Orchestrator:
 if __name__ == "__main__":
     orchestrator = Orchestrator()
     orchestrator.start_listening()
-

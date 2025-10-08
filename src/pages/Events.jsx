@@ -1,295 +1,462 @@
-import React, { useState } from 'react';
-import { FaSearch, FaMapMarkerAlt, FaCalendarAlt, FaTicketAlt, FaMusic, FaUtensils, FaLandmark, FaRunning } from 'react-icons/fa';
+import React, { useEffect, useMemo, useState } from "react";
 
-const Events = () => {
-  const [location, setLocation] = useState('');
-  const [dateRange, setDateRange] = useState('this-weekend');
-  const [category, setCategory] = useState('all');
-  
-  // Mock events data
-  const mockEvents = [
-    {
-      id: 1,
-      title: 'Jazz in the Park',
-      date: '2023-06-15',
-      time: '18:00',
-      location: 'Central Park',
-      category: 'music',
-      price: 'Free',
-      image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      description: 'Enjoy an evening of smooth jazz performances from local artists in the beautiful Central Park.'
-    },
-    {
-      id: 2,
-      title: 'Food Festival',
-      date: '2023-06-16',
-      time: '11:00',
-      location: 'Downtown Square',
-      category: 'food',
-      price: '$15-50',
-      image: 'https://images.unsplash.com/photo-1504674900247-087703934569?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      description: 'Taste dishes from over 50 local restaurants and food trucks at this annual food festival.'
-    },
-    {
-      id: 3,
-      title: 'Historical Tour',
-      date: '2023-06-17',
-      time: '10:00',
-      location: 'Old Town District',
-      category: 'culture',
-      price: '$25',
-      image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      description: 'A guided walking tour through the historic district, featuring architecture from the 18th century.'
-    },
-    {
-      id: 4,
-      title: 'Yoga in the Park',
-      date: '2023-06-18',
-      time: '08:00',
-      location: 'Riverside Park',
-      category: 'sports',
-      price: 'Donation',
-      image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      description: 'Start your Sunday morning with a peaceful yoga session by the river. All levels welcome.'
-    },
-    {
-      id: 5,
-      title: 'Art Exhibition',
-      date: '2023-06-19',
-      time: '12:00',
-      location: 'Modern Art Museum',
-      category: 'art',
-      price: '$18',
-      image: 'https://images.unsplash.com/photo-1531913764164-f85c52d6e654?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      description: 'Contemporary art exhibition featuring works from emerging local artists.'
-    },
-    {
-      id: 6,
-      title: 'Wine Tasting',
-      date: '2023-06-20',
-      time: '19:00',
-      location: 'Vineyard Estate',
-      category: 'food',
-      price: '$45',
-      image: 'https://images.unsplash.com/photo-1510626176961-4b57d4fbad03?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      description: 'An evening of fine wines and gourmet pairings at the beautiful Vineyard Estate.'
-    },
-  ];
-  
-  const categories = [
-    { id: 'all', name: 'All Events', icon: <FaTicketAlt /> },
-    { id: 'music', name: 'Music', icon: <FaMusic /> },
-    { id: 'food', name: 'Food & Drink', icon: <FaUtensils /> },
-    { id: 'culture', name: 'Culture', icon: <FaLandmark /> },
-    { id: 'sports', name: 'Sports & Wellness', icon: <FaRunning /> },
-  ];
-  
-  const dateRanges = [
-    { id: 'today', name: 'Today' },
-    { id: 'tomorrow', name: 'Tomorrow' },
-    { id: 'this-weekend', name: 'This Weekend' },
-    { id: 'next-week', name: 'Next Week' },
-    { id: 'this-month', name: 'This Month' },
-  ];
-  
-  const filteredEvents = mockEvents.filter(event => {
-    // Filter by category
-    if (category !== 'all' && event.category !== category) {
-      return false;
-    }
-    
-    // Filter by location (if provided)
-    if (location && !event.location.toLowerCase().includes(location.toLowerCase())) {
-      return false;
-    }
-    
-    // Note: In a real app, we would implement date filtering logic here
-    
-    return true;
+const gradientPalettes = [
+  "from-emerald-400/40 via-cyan-400/30 to-indigo-500/30",
+  "from-fuchsia-400/40 via-purple-500/30 to-sky-500/30",
+  "from-amber-400/40 via-rose-500/30 to-purple-600/30",
+  "from-blue-400/40 via-indigo-500/30 to-slate-900/20",
+  "from-teal-400/40 via-emerald-500/30 to-lime-400/20",
+  "from-rose-400/40 via-orange-500/30 to-amber-400/20",
+];
+
+const fallbackImages = [
+  "https://images.unsplash.com/photo-1459749411175-04bf5292ceea",
+  "https://images.unsplash.com/photo-1514516430032-7f0c3b80805d",
+  "https://images.unsplash.com/photo-1464375117522-1311d6a5b81a",
+  "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70",
+  "https://images.unsplash.com/photo-1459749411175-04bf5292ceea",
+  "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7",
+];
+
+const formatDateTime = (date, time) => {
+  if (!date && !time) return "Schedule TBA";
+  const composed = [date, time].filter(Boolean).join(" ");
+  const parsed = new Date(composed || date);
+  if (Number.isNaN(parsed.getTime())) {
+    return composed || "Schedule TBA";
+  }
+  return parsed.toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
-  
-  const getCategoryColor = (category) => {
-    switch(category) {
-      case 'music':
-        return 'bg-purple-100 text-purple-800';
-      case 'food':
-        return 'bg-red-100 text-red-800';
-      case 'culture':
-        return 'bg-amber-100 text-amber-800';
-      case 'sports':
-        return 'bg-green-100 text-green-800';
-      case 'art':
-        return 'bg-pink-100 text-pink-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-  
-  const formatDate = (dateString) => {
-    const options = { weekday: 'short', month: 'short', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString('en-US', options);
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-light to-gray-100 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-dark mb-8">
-          Local Happenings
-        </h1>
-        
-        {/* Search and Filters */}
-        <div className="bg-white rounded-xl shadow-xl overflow-hidden mb-8">
-          <div className="p-6 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white">
-            <h2 className="text-2xl font-bold mb-4">Discover Events</h2>
-            <form className="space-y-4">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaSearch className="text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Search by location or event name..."
-                  className="w-full pl-10 pr-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                />
-              </div>
-              
-              <div className="flex flex-wrap gap-4">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium text-white mb-1">When</label>
-                  <select
-                    value={dateRange}
-                    onChange={(e) => setDateRange(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-300"
-                  >
-                    {dateRanges.map(range => (
-                      <option key={range.id} value={range.id}>
-                        {range.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium text-white mb-1">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg text-gray-800 focus:ring-2 focus:ring-indigo-300"
-                  >
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </form>
-          </div>
-          
-          {/* Category Tabs */}
-          <div className="p-4 bg-gray-50 border-b">
-            <div className="flex flex-wrap gap-2">
-              {categories.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategory(cat.id)}
-                  className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    category === cat.id
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="mr-2">{cat.icon}</span>
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        
-        {/* Events Grid */}
-        {filteredEvents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredEvents.map(event => (
-              <div key={event.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                <div className="relative h-48">
-                  <img 
-                    src={event.image} 
-                    alt={event.title} 
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-3 right-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getCategoryColor(event.category)}`}>
-                      {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
-                    <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                      {event.price === 'Free' ? 'FREE' : `From ${event.price}`}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center text-gray-500 text-sm mb-3">
-                    <FaCalendarAlt className="mr-2" />
-                    <span>{formatDate(event.date)} • {event.time}</span>
-                  </div>
-                  
-                  <div className="flex items-center text-gray-500 text-sm mb-4">
-                    <FaMapMarkerAlt className="mr-2" />
-                    <span>{event.location}</span>
-                  </div>
-                  
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                    {event.description}
-                  </p>
-                  
-                  <div className="flex justify-between items-center">
-                    <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                      More Details
-                    </button>
-                    <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
-                      Get Tickets
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-xl p-12 text-center">
-            <div className="text-5xl mb-4">🎭</div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">No events found</h3>
-            <p className="text-gray-600">Try adjusting your search or filters to find more events.</p>
-          </div>
-        )}
-        
-        {/* Newsletter Signup */}
-        <div className="mt-12 bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-xl shadow-xl p-8 text-white">
-          <div className="max-w-3xl mx-auto text-center">
-            <h3 className="text-2xl font-bold mb-3">Never Miss an Event Again</h3>
-            <p className="mb-6 opacity-90">Subscribe to our newsletter and get the best events delivered to your inbox.</p>
-            <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-              <input 
-                type="email" 
-                placeholder="Enter your email" 
-                className="flex-1 px-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              />
-              <button className="px-6 py-3 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-300 transition-colors">
-                Subscribe
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 };
 
-export default Events;
+const parseDateTime = (date, time) => {
+  if (!date && !time) return null;
+  const composed = [date, time].filter(Boolean).join(" ");
+  const parsed = new Date(composed || date);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+export default function EventRecommendations() {
+  const [city, setCity] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!city.trim()) return;
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        city: city.trim(),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate }),
+      });
+
+      const res = await fetch(
+        `http://localhost:3000/api/events?${params.toString()}`
+      );
+      const data = await res.json();
+      setEvents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("❌ Error fetching events:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setEndDate((prev) => {
+      if (!prev) return prev;
+      if (startDate && new Date(prev) < new Date(startDate)) {
+        return startDate;
+      }
+      return prev;
+    });
+  }, [startDate]);
+
+  const today = new Date().toISOString().split("T")[0];
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  const maxDate = nextMonth.toISOString().split("T")[0];
+
+  const vibePalette = useMemo(() => {
+    const counts = events.reduce((acc, current) => {
+      const key = current.category || "Uncategorized";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(counts)
+      .map(([label, total]) => ({ label, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+  }, [events]);
+
+  const timelineEvents = useMemo(() => {
+    return [...events]
+      .map((event) => ({
+        ...event,
+        _dateTime: parseDateTime(event.date, event.time),
+      }))
+      .sort((a, b) => {
+        if (!a._dateTime && !b._dateTime) return 0;
+        if (!a._dateTime) return 1;
+        if (!b._dateTime) return -1;
+        return a._dateTime - b._dateTime;
+      })
+      .slice(0, 8);
+  }, [events]);
+
+  const highlightEvents = useMemo(() => events.slice(0, 6), [events]);
+
+  const heroCity = useMemo(() => {
+    if (city.trim()) return city.trim();
+    if (events[0]?.location) {
+      return events[0].location.split(",")[0];
+    }
+    return "Your Next Stop";
+  }, [city, events]);
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.25),_transparent_60%)]"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(236,72,153,0.25),_transparent_70%)]"
+        aria-hidden="true"
+      />
+
+      <main className="relative mx-auto max-w-7xl px-4 pb-24 pt-20 sm:px-8 lg:px-12">
+        <section className="mb-12 grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+          <div className="relative overflow-hidden rounded-4xl border border-white/10 bg-gradient-to-br from-slate-950/90 via-slate-900/75 to-slate-950/60 p-10 shadow-[0_32px_80px_rgba(14,165,233,0.35)]">
+            <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-gradient-to-br from-emerald-400/40 via-cyan-400/40 to-indigo-500/40 blur-3xl" />
+            <div className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-gradient-to-br from-fuchsia-500/40 via-purple-500/40 to-sky-400/40 blur-3xl" />
+
+            <div className="relative space-y-6">
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/70">
+                Live Culture Radar
+              </span>
+              <h1 className="text-4xl font-black leading-tight sm:text-5xl">
+                Spin up unforgettable nights in {heroCity}.
+              </h1>
+              <p className="max-w-xl text-sm text-white/70 sm:text-base">
+                Stream upcoming concerts, festivals, pop-ups, and underground sessions in real time.
+                Tune the filters, lock in your date window, and watch the stage lineup reconfigure instantly.
+              </p>
+
+              <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <label className="md:col-span-2">
+                    <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+                      Anchor City
+                    </span>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="e.g., Berlin, Singapore, Austin"
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+                      Window Opens
+                    </span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      min={today}
+                      max={maxDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                    />
+                  </label>
+
+                  <label>
+                    <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+                      Window Ends
+                    </span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      min={startDate || today}
+                      max={maxDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      disabled={!startDate}
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={loading || !city.trim()}
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 via-emerald-300 to-white px-8 py-3 text-sm font-semibold text-slate-900 shadow-[0_20px_60px_rgba(16,185,129,0.35)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <svg
+                          className="h-4 w-4 animate-spin"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        Scanning Venues...
+                      </>
+                    ) : (
+                      <>
+                        <span>Launch Radar</span>
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+
+                  {events.length > 0 && (
+                    <span className="text-xs uppercase tracking-[0.4em] text-white/50">
+                      {events.length} events tuned in
+                    </span>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <aside className="flex flex-col justify-between gap-6 rounded-4xl border border-white/10 bg-white/5 p-8 shadow-[0_28px_60px_rgba(15,23,42,0.35)] backdrop-blur">
+            <div>
+              <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-white/70">
+                Broadcast Checklist
+              </h2>
+              <ul className="mt-6 space-y-4 text-sm text-white/70">
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-emerald-300" />
+                  Choose the city pulse, then widen the window for a broader sweep of talent.
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-cyan-300" />
+                  Star events to share with collaborators or pin to your tour itinerary.
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-rose-300" />
+                  Use the rhythm line for a choreographed daily route across stages.
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-3xl border border-emerald-400/30 bg-gradient-to-br from-emerald-400/20 via-slate-900/40 to-indigo-500/20 p-6 text-sm text-white/80">
+              <p className="font-semibold uppercase tracking-[0.3em] text-emerald-100">
+                Tip
+              </p>
+              <p className="mt-2 text-white/80">
+                Once you lock the lineup, sync it with your itinerary generator to auto-thread hotels, dining, and downtime between performances.
+              </p>
+            </div>
+          </aside>
+        </section>
+
+        {loading ? (
+          <div className="flex min-h-[300px] items-center justify-center">
+            <div className="relative">
+              <div className="h-24 w-24 rounded-full border-4 border-white/20 border-t-emerald-300 animate-spin" />
+              <div className="absolute inset-2 rounded-full border border-white/10" />
+            </div>
+          </div>
+        ) : events.length > 0 ? (
+          <>
+            <section className="grid gap-10 lg:grid-cols-[2fr_1fr]">
+              <div className="grid gap-6 sm:grid-cols-2">
+                {highlightEvents.map((event, index) => {
+                  const gradient = gradientPalettes[index % gradientPalettes.length];
+                  const image = event.imageUrl || fallbackImages[index % fallbackImages.length];
+                  return (
+                    <article
+                      key={`${event.title}-${index}`}
+                      className="group relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/60 p-6 text-white shadow-[0_26px_70px_rgba(13,148,136,0.25)] transition duration-500 hover:-translate-y-1 hover:border-emerald-300/60"
+                    >
+                      <div
+                        className={`absolute -inset-20 bg-gradient-to-br ${gradient} opacity-40 blur-3xl transition group-hover:opacity-80`}
+                        aria-hidden="true"
+                      />
+                      <div
+                        className="absolute inset-0 opacity-30 transition group-hover:opacity-60"
+                        style={{
+                          backgroundImage: `url(${image})`,
+                          backgroundPosition: "center",
+                          backgroundSize: "cover",
+                        }}
+                      />
+
+                      <div className="relative flex h-full flex-col">
+                        <div className="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-white/60">
+                          <span>#{String(index + 1).padStart(2, "0")}</span>
+                          {event.category && (
+                            <span className="rounded-full border border-white/20 px-3 py-1 text-[10px] text-white/70">
+                              {event.category}
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="mt-5 text-2xl font-semibold leading-tight">
+                          {event.title || "Untitled Event"}
+                        </h3>
+
+                        <p className="mt-4 line-clamp-3 text-sm text-white/80">
+                          {event.description || "Keep your schedule flexible—this act is all about surprise improv."}
+                        </p>
+
+                        <div className="mt-6 space-y-2 text-xs text-white/60">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-300" />
+                            <span>{formatDateTime(event.date, event.time)}</span>
+                          </div>
+                          {event.location && (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex h-2 w-2 rounded-full bg-cyan-300" />
+                              <span>{event.location}</span>
+                            </div>
+                          )}
+                          {event.price && (
+                            <div className="flex items-center gap-2 text-emerald-200">
+                              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                              <span>{event.price}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-8 flex items-center justify-between text-xs uppercase tracking-[0.35em] text-white/60">
+                          <span>Swipe right to slot into itinerary</span>
+                          <svg
+                            className="h-4 w-4 text-white/50 transition group-hover:translate-x-1 group-hover:text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <aside className="relative rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-[0_28px_70px_rgba(59,130,246,0.25)]">
+                <div className="absolute left-8 top-16 bottom-16 w-0.5 bg-gradient-to-b from-emerald-400 via-cyan-400 to-indigo-500 opacity-80" />
+                <h3 className="mb-6 text-xs font-semibold uppercase tracking-[0.4em] text-white/60">
+                  Rhythm Line
+                </h3>
+                <div className="space-y-6">
+                  {timelineEvents.length ? (
+                    timelineEvents.map((event, index) => (
+                      <div key={`${event.title}-${index}`} className="relative pl-10">
+                        <div className="absolute left-2 top-1 flex h-5 w-5 items-center justify-center rounded-full border border-white/20 bg-slate-950">
+                          <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                        </div>
+                        <p className="text-[10px] uppercase tracking-[0.4em] text-white/50">
+                          {event._dateTime ? event._dateTime.toLocaleDateString("en-US", { weekday: "short" }) : "TBA"}
+                        </p>
+                        <h4 className="mt-1 text-lg font-semibold text-white">
+                          {event.title || "Headline Pending"}
+                        </h4>
+                        <p className="text-xs text-white/60">
+                          {formatDateTime(event.date, event.time)}
+                        </p>
+                        {event.location && (
+                          <p className="mt-1 text-xs text-white/60">{event.location}</p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-white/60">
+                      Lock in a city to auto-compose your evening timeline.
+                    </p>
+                  )}
+                </div>
+              </aside>
+            </section>
+
+            <section className="mt-12 grid gap-8 lg:grid-cols-[1.3fr_1fr]">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.35)] backdrop-blur">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">
+                  Vibe Palette
+                </h3>
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {vibePalette.map(({ label, total }, index) => (
+                    <div
+                      key={label}
+                      className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-sm text-white shadow-[0_18px_45px_rgba(59,130,246,0.25)]"
+                    >
+                      <div
+                        className="absolute -inset-10 bg-gradient-to-br from-emerald-400/20 via-cyan-400/20 to-indigo-500/20 blur-3xl"
+                        aria-hidden="true"
+                      />
+                      <div className="relative">
+                        <p className="text-xs uppercase tracking-[0.35em] text-white/60">{String(index + 1).padStart(2, "0")}</p>
+                        <p className="mt-3 text-base font-semibold">{label}</p>
+                        <p className="mt-1 text-xs text-white/60">{total} spotlight{total === 1 ? "" : "s"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-emerald-300/30 bg-gradient-to-br from-emerald-300/10 via-slate-900/60 to-indigo-500/20 p-6 text-white shadow-[0_24px_60px_rgba(16,185,129,0.3)]">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.4em] text-emerald-100">
+                  Crowd Energy Monitor
+                </h3>
+                <div className="mt-6 space-y-4 text-sm text-white/80">
+                  <p>
+                    {events.length} events loaded. Toggle between genres, stitch a back-to-back night, or keep the
+                    rhythm line aligned with daylight hours.
+                  </p>
+                  <p>
+                    Use this board as an interactive moodboard—pin performances, export to your team, or trigger a
+                    compare run straight from the top picks.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </>
+        ) : (
+          <section className="mt-16 rounded-4xl border border-white/10 bg-white/5 p-12 text-center text-white shadow-[0_28px_70px_rgba(59,130,246,0.2)] backdrop-blur">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-white/15 bg-white/5">
+              <span className="text-3xl">✨</span>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold">Dial in a city to summon the lineup.</h2>
+            <p className="mt-3 text-white/70">
+              Well remix your cultural calendar moment by moment, from sunrise yoga raves to midnight improv battles.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-4 text-xs uppercase tracking-[0.4em] text-white/50">
+              <span className="rounded-full border border-white/15 px-4 py-2">Jazz Rooftops</span>
+              <span className="rounded-full border border-white/15 px-4 py-2">Secret Pop-ups</span>
+              <span className="rounded-full border border-white/15 px-4 py-2">Festival Headliners</span>
+              <span className="rounded-full border border-white/15 px-4 py-2">Underground Labs</span>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}

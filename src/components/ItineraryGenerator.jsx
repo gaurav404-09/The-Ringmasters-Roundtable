@@ -1,362 +1,459 @@
-import React, { useState } from 'react';
-import { FaMapMarkerAlt, FaCalendarAlt, FaUsers, FaDollarSign, FaHeart, FaCamera, FaUtensils, FaLandmark, FaTree, FaMusic, FaShoppingBag, FaSpinner, FaPlane, FaHotel } from 'react-icons/fa';
+import React, { useMemo, useState } from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import {
+  FaMapMarkerAlt,
+  FaCalendarAlt,
+  FaUsers,
+  FaDollarSign,
+  FaUtensils,
+  FaLandmark,
+  FaTree,
+  FaCamera,
+  FaMusic,
+  FaShoppingBag,
+  FaSpinner,
+  FaTimes,
+} from 'react-icons/fa';
 import ENV from '../config/env';
 
 const { API_BASE_URL } = ENV;
 
-const ItineraryGenerator = ({ onItineraryGenerated }) => {
-  const [step, setStep] = useState(1);
-  const [isGenerating, setIsGenerating] = useState(false);
+const INTERESTS = [
+  { id: 'culture', name: 'Culture & History', icon: FaLandmark },
+  { id: 'food', name: 'Food & Dining', icon: FaUtensils },
+  { id: 'nature', name: 'Nature & Parks', icon: FaTree },
+  { id: 'photography', name: 'Photography', icon: FaCamera },
+  { id: 'nightlife', name: 'Nightlife & Entertainment', icon: FaMusic },
+  { id: 'shopping', name: 'Shopping', icon: FaShoppingBag },
+];
+
+const BUDGET_OPTIONS = [
+  { value: 'low', label: 'Budget ($)', description: 'Affordable options' },
+  { value: 'medium', label: 'Moderate ($$)', description: 'Balanced comfort' },
+  { value: 'high', label: 'Luxury ($$$)', description: 'Premium experiences' },
+];
+
+const formatDisplayDate = (value) => {
+  if (!value) return 'Not set';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Not set';
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+const ItineraryGenerator = ({ onItineraryGenerated, onClose }) => {
   const [formData, setFormData] = useState({
     destination: '',
     startDate: '',
     endDate: '',
     travelers: 1,
     budget: 'medium',
-    interests: []
+    interests: [],
+    notes: '',
   });
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState(null);
 
-  const interests = [
-    { id: 'culture', name: 'Culture & History', icon: <FaLandmark /> },
-    { id: 'food', name: 'Food & Dining', icon: <FaUtensils /> },
-    { id: 'nature', name: 'Nature & Parks', icon: <FaTree /> },
-    { id: 'photography', name: 'Photography', icon: <FaCamera /> },
-    { id: 'nightlife', name: 'Nightlife & Entertainment', icon: <FaMusic /> },
-    { id: 'shopping', name: 'Shopping', icon: <FaShoppingBag /> }
-  ];
+  const tripLength = useMemo(() => {
+    if (!formData.startDate || !formData.endDate) return 0;
+    const start = new Date(formData.startDate);
+    const end = new Date(formData.endDate);
+    const diff = end - start;
+    if (Number.isNaN(diff) || diff < 0) return 0;
+    return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+  }, [formData.startDate, formData.endDate]);
 
-  const budgetOptions = [
-    { value: 'low', label: 'Budget ($)', description: 'Affordable options' },
-    { value: 'medium', label: 'Moderate ($$)', description: 'Mid-range experiences' },
-    { value: 'high', label: 'Luxury ($$$)', description: 'Premium experiences' }
-  ];
+  const selectedBudget = useMemo(
+    () => BUDGET_OPTIONS.find((option) => option.value === formData.budget) ?? BUDGET_OPTIONS[1],
+    [formData.budget],
+  );
+
+  const selectedInterests = useMemo(
+    () => INTERESTS.filter((interest) => formData.interests.includes(interest.id)),
+    [formData.interests],
+  );
+
+  const canSubmit = Boolean(
+    formData.destination.trim() &&
+      formData.startDate &&
+      formData.endDate &&
+      tripLength > 0 &&
+      formData.travelers > 0,
+  );
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const toggleInterest = (interestId) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       interests: prev.interests.includes(interestId)
-        ? prev.interests.filter(id => id !== interestId)
-        : [...prev.interests, interestId]
+        ? prev.interests.filter((id) => id !== interestId)
+        : [...prev.interests, interestId],
     }));
   };
 
-  const generateItinerary = async () => {
+  const validate = () => {
+    if (!formData.destination.trim()) {
+      setError('Destination is required');
+      return false;
+    }
+    if (!formData.startDate || !formData.endDate) {
+      setError('Select your start and end dates');
+      return false;
+    }
+    if (tripLength <= 0) {
+      setError('End date must be after start date');
+      return false;
+    }
+    setError(null);
+    return true;
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!validate()) return;
+
     setIsGenerating(true);
-    
+
     try {
+      const requestBody = {
+        destination: formData.destination,
+        days: tripLength,
+        interests: formData.interests,
+        startDate: formData.startDate,
+        budget: formData.budget,
+        travelers: formData.travelers,
+        notes: formData.notes,
+      };
+
       const response = await fetch(`${API_BASE_URL}/api/itinerary`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          destination: formData.destination,
-          days: Math.ceil((new Date(formData.endDate) - new Date(formData.startDate)) / (1000 * 60 * 60 * 24)) + 1,
-          interests: formData.interests,
-          startDate: formData.startDate,
-          budget: formData.budget,
-          travelers: formData.travelers
-        })
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate itinerary');
+        let errorMessage = `Request failed (${response.status})`;
+        try {
+          const errorPayload = await response.json();
+          errorMessage = errorPayload.error || errorPayload.message || errorMessage;
+        } catch (parseError) {
+          console.error('Unable to parse error response', parseError);
+        }
+        throw new Error(errorMessage);
       }
-      
+
       const itinerary = await response.json();
-      onItineraryGenerated(itinerary);
-    } catch (error) {
-      console.error('Error generating itinerary:', error);
-      
-      alert(`Failed to generate itinerary: ${error.message}\n\nPlease check:\n- Your destination name is correct\n- Backend server is running on port 5000\n- Internet connection is stable`);
-      
+      const enriched = {
+        itinerary,
+        request: requestBody,
+        generatedAt: new Date().toISOString(),
+      };
+      onItineraryGenerated(enriched);
+    } catch (err) {
+      console.error('Error generating itinerary:', err);
+      setError(err.message || 'Unable to generate itinerary. Please try again.');
+    } finally {
       setIsGenerating(false);
-      return;
-    }
-    
-    setIsGenerating(false);
-  };
-
-  const nextStep = () => {
-    if (step < 4) setStep(step + 1);
-  };
-
-  const prevStep = () => {
-    if (step > 1) setStep(step - 1);
-  };
-
-  const canProceed = () => {
-    switch (step) {
-      case 1:
-        return formData.destination.trim() !== '';
-      case 2:
-        return formData.startDate && formData.endDate;
-      case 3:
-        return formData.travelers > 0;
-      case 4:
-        return true;
-      default:
-        return false;
     }
   };
 
   if (isGenerating) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-950/80 backdrop-blur-2xl flex items-center justify-center p-6">
         <div className="text-center max-w-md w-full">
           <div className="relative mb-8">
-            <div className="absolute inset-0 bg-indigo-100 rounded-full opacity-30 blur-xl animate-pulse"></div>
-            <FaSpinner className="relative text-6xl text-indigo-600 animate-spin mx-auto" />
-          </div>
-          
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">Creating Your Perfect Itinerary</h2>
-          <p className="text-gray-700 mb-8">Fetching real attractions, restaurants, and hotels...</p>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-            <div className="space-y-5">
-              <div className="flex items-center text-gray-900">
-                <div className="flex-shrink-0 w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mr-4">
-                  <FaMapMarkerAlt className="text-indigo-600 text-lg" />
-                </div>
-                <span className="font-medium">Finding attractions and landmarks</span>
-              </div>
-              <div className="flex items-center text-gray-900">
-                <div className="flex-shrink-0 w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center mr-4">
-                  <FaUtensils className="text-rose-600 text-lg" />
-                </div>
-                <span className="font-medium">Discovering local restaurants</span>
-              </div>
-              <div className="flex items-center text-gray-900">
-                <div className="flex-shrink-0 w-10 h-10 bg-violet-50 rounded-full flex items-center justify-center mr-4">
-                  <FaHotel className="text-violet-600 text-lg" />
-                </div>
-                <span className="font-medium">Locating accommodations</span>
-              </div>
+            <div className="absolute inset-0 bg-emerald-400/20 rounded-full blur-3xl animate-pulse" />
+            <div className="relative mx-auto h-60 w-60 sm:h-72 sm:w-72">
+              <DotLottieReact
+                src="https://lottie.host/35ef987b-1078-4aaa-9af3-142e71ee47a6/KPEvndzVkH.lottie"
+                loop
+                autoplay
+                className="h-full w-full"
+              />
             </div>
           </div>
+          <h2 className="text-2xl font-bold text-white">Crafting Your Travel Story</h2>
+          <p className="mt-3 text-white/70">Sit tight—your tailored itinerary is on its way.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-indigo-50 p-4 md:p-8">
-      <div className="max-w-2xl mx-auto">
-        {/* Progress Bar */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-800">Step {step} of 4</span>
-            <span className="text-sm font-medium text-gray-700">{Math.round((step / 4) * 100)}% Complete</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-            <div 
-              className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-              style={{ width: `${(step / 4) * 100}%` }}
-            ></div>
-          </div>
-        </div>
+    <div className="relative min-h-screen bg-slate-950/90 py-10 px-4 sm:px-6 lg:px-10">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.25),_transparent_55%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.25),_transparent_55%)]" />
 
-        <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 border border-gray-200">
-          {/* Step 1: Destination */}
-          {step === 1 && (
-            <div className="text-center">
-              <FaMapMarkerAlt className="text-5xl text-indigo-600 mx-auto mb-5" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">Where would you like to go?</h2>
-              <p className="text-gray-700 mb-6 text-lg">Enter your dream destination</p>
-              
-              <input
-                type="text"
-                placeholder="e.g., Paris, Tokyo, New York"
-                value={formData.destination}
-                onChange={(e) => handleInputChange('destination', e.target.value)}
-                className="w-full p-4 text-lg text-gray-900 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-colors placeholder-gray-500"
-              />
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-3xl border border-white/12 bg-white/10 backdrop-blur-3xl shadow-[0_35px_60px_rgba(15,23,42,0.65)] p-6 sm:p-10 text-white"
+        >
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-black tracking-tight">Design Your Itinerary</h1>
+              <p className="mt-2 text-sm font-medium text-white/70">
+                Share a few preferences and we will stitch together a beautiful day-by-day plan.
+              </p>
+            </div>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white/85 transition-all hover:bg-white/20"
+              >
+                <FaTimes className="text-xs" />
+                Close
+              </button>
+            )}
+          </div>
+
+          {error && (
+            <div className="mt-6 rounded-2xl border border-rose-300/40 bg-rose-500/20 px-4 py-3 text-sm text-rose-100">
+              {error}
             </div>
           )}
 
-          {/* Step 2: Dates */}
-          {step === 2 && (
-            <div className="text-center">
-              <FaCalendarAlt className="text-5xl text-emerald-600 mx-auto mb-5" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">When are you traveling?</h2>
-              <p className="text-gray-700 mb-7 text-lg">Select your travel dates</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Start Date</label>
+          <div className="mt-10 grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+            <div className="space-y-8">
+              <label className="group flex flex-col rounded-2xl border border-white/15 bg-white/8 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.4)]">
+                <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">Destination</span>
+                <div className="mt-3 flex items-center gap-3">
+                  <FaMapMarkerAlt className="text-lg text-white/70" />
                   <input
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => handleInputChange('startDate', e.target.value)}
-                    className="w-full p-4 text-gray-900 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-colors"
+                    type="text"
+                    placeholder="e.g., Bali, Indonesia"
+                    value={formData.destination}
+                    onChange={(event) => handleInputChange('destination', event.target.value)}
+                    className="w-full bg-transparent text-lg font-semibold text-white placeholder-white/40 focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">End Date</label>
-                  <input
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => handleInputChange('endDate', e.target.value)}
-                    className="w-full p-4 text-gray-900 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-colors"
-                  />
+              </label>
+
+              <div className="grid gap-4 rounded-2xl border border-white/15 bg-white/8 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.35)] sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">Start Date</span>
+                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <FaCalendarAlt className="text-white/70" />
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(event) => handleInputChange('startDate', event.target.value)}
+                      className="w-full bg-transparent text-sm font-medium text-white focus:outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">End Date</span>
+                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <FaCalendarAlt className="text-white/70" />
+                    <input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(event) => handleInputChange('endDate', event.target.value)}
+                      className="w-full bg-transparent text-sm font-medium text-white focus:outline-none"
+                    />
+                  </label>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Step 3: Travelers & Budget */}
-          {step === 3 && (
-            <div className="text-center">
-              <FaUsers className="text-5xl text-violet-600 mx-auto mb-5" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">Travel Details</h2>
-              <p className="text-gray-700 mb-7 text-lg">How many travelers and what's your budget?</p>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">Number of Travelers</label>
-                  <div className="flex items-center space-x-3">
-                    <button 
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/15 bg-white/8 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.35)]">
+                  <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">Travelers</span>
+                  <div className="mt-4 flex items-center gap-4">
+                    <button
+                      type="button"
                       onClick={() => handleInputChange('travelers', Math.max(1, formData.travelers - 1))}
-                      className="w-14 h-14 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center justify-center text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      className="h-12 w-12 rounded-full border border-white/20 bg-white/10 text-2xl font-bold text-white transition hover:bg-white/20"
                       aria-label="Decrease number of travelers"
                     >
-                      -
+                      −
                     </button>
-                    <div className="flex-1">
-                      <input
-                        type="number"
-                        min="1"
-                        max="20"
-                        value={formData.travelers}
-                        onChange={(e) => handleInputChange('travelers', parseInt(e.target.value) || 1)}
-                        className="w-full p-4 text-center text-lg font-semibold text-gray-900 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
-                        aria-label="Number of travelers"
-                      />
-                    </div>
-                    <button 
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={formData.travelers}
+                      onChange={(event) => handleInputChange('travelers', Math.max(1, Number.parseInt(event.target.value, 10) || 1))}
+                      className="w-full rounded-full border border-white/15 bg-white/10 py-3 text-center text-lg font-semibold text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
                       onClick={() => handleInputChange('travelers', formData.travelers + 1)}
-                      className="w-14 h-14 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center justify-center text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      className="h-12 w-12 rounded-full border border-white/20 bg-emerald-400 text-2xl font-bold text-slate-900 shadow-[0_15px_35px_rgba(16,185,129,0.45)] transition hover:-translate-y-0.5"
                       aria-label="Increase number of travelers"
                     >
                       +
                     </button>
                   </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-4">Budget Range</label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {budgetOptions.map((option) => {
-                      const isSelected = formData.budget === option.value;
+
+                <div className="rounded-2xl border border-white/15 bg-white/8 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.35)]">
+                  <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">Budget Focus</span>
+                  <div className="mt-4 grid gap-3">
+                    {BUDGET_OPTIONS.map((option) => {
+                      const isSelected = option.value === formData.budget;
                       return (
                         <button
                           key={option.value}
+                          type="button"
                           onClick={() => handleInputChange('budget', option.value)}
-                          className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          className={`rounded-2xl border px-4 py-3 text-left transition ${
                             isSelected
-                              ? 'border-indigo-600 bg-indigo-50 text-gray-900 shadow-md'
-                              : 'border-gray-200 hover:border-indigo-300 bg-white hover:bg-gray-50'
+                              ? 'border-white/80 bg-white text-slate-900 shadow-[0_18px_45px_rgba(255,255,255,0.45)]'
+                              : 'border-white/15 bg-white/5 text-white/80 hover:border-white/40 hover:bg-white/10'
                           }`}
                         >
-                          <div className="font-semibold text-gray-900">{option.label}</div>
-                          <div className={`text-sm mt-1 ${isSelected ? 'text-gray-700' : 'text-gray-600'}`}>
-                            {option.description}
-                          </div>
+                          <div className="text-sm font-semibold">{option.label}</div>
+                          <div className="text-xs text-white/60">{option.description}</div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Step 4: Interests */}
-          {step === 4 && (
-            <div className="text-center">
-              <FaHeart className="text-5xl text-rose-600 mx-auto mb-5" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">What interests you?</h2>
-              <p className="text-gray-700 mb-7">Select your travel interests (optional)</p>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {interests.map((interest) => (
-                  <button
-                    key={interest.id}
-                    onClick={() => toggleInterest(interest.id)}
-                    className={`p-4 rounded-xl border-2 transition-all h-full w-full ${
-                      formData.interests.includes(interest.id)
-                        ? 'border-indigo-600 bg-indigo-50 shadow-md transform -translate-y-0.5'
-                        : 'border-gray-200 hover:border-indigo-300 bg-white hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className={`text-2xl mb-2 ${formData.interests.includes(interest.id) ? 'text-indigo-600' : 'text-gray-600'}`}>
-                      {interest.icon}
-                    </div>
-                    <div className="text-sm font-semibold text-gray-900">{interest.name}</div>
-                  </button>
-                ))}
+              <div className="rounded-2xl border border-white/15 bg-white/8 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.35)]">
+                <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">Interests</span>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {INTERESTS.map(({ id, name, icon: Icon }) => {
+                    const active = formData.interests.includes(id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => toggleInterest(id)}
+                        className={`flex h-full flex-col items-start gap-3 rounded-2xl border px-4 py-4 text-left transition ${
+                          active
+                            ? 'border-white/70 bg-white/80 text-slate-900 shadow-[0_18px_45px_rgba(255,255,255,0.45)]'
+                            : 'border-white/15 bg-white/5 text-white/80 hover:border-white/35 hover:bg-white/10'
+                        }`}
+                      >
+                        <Icon className={`text-lg ${active ? 'text-slate-900' : 'text-white/70'}`} />
+                        <span className="text-sm font-semibold">{name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-10 pt-6 border-t border-gray-200">
-            <button
-              onClick={prevStep}
-              disabled={step === 1}
-              className={`px-6 py-3.5 rounded-xl font-medium flex items-center space-x-2 transition-all ${
-                step === 1
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-              }`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              <span>Previous</span>
-            </button>
-            
-            {step < 4 ? (
-              <button
-                onClick={nextStep}
-                disabled={!canProceed()}
-                className={`px-8 py-3.5 rounded-xl font-medium flex items-center space-x-2 transition-all ${
-                  canProceed()
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                <span>Next</span>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                onClick={generateItinerary}
-                disabled={!canProceed()}
-                className={`px-8 py-3.5 rounded-xl font-medium flex items-center space-x-2 transition-all ${
-                  canProceed()
-                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md hover:shadow-emerald-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                <span>Generate Itinerary</span>
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </button>
-            )}
+              <label className="block rounded-2xl border border-white/15 bg-white/8 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.35)]">
+                <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/60">Notes & Must-dos</span>
+                <textarea
+                  rows={4}
+                  value={formData.notes}
+                  onChange={(event) => handleInputChange('notes', event.target.value)}
+                  placeholder="Share any must-see spot, dietary need, or vibe you want the trip to have."
+                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white placeholder-white/40 focus:outline-none"
+                />
+              </label>
+            </div>
+
+            <aside className="space-y-6">
+              <div className="rounded-2xl border border-white/15 bg-white/10 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.35)]">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.4em] text-white/60">Trip Overview</h2>
+                <div className="mt-4 space-y-4 text-sm text-white/85">
+                  <div className="flex items-start gap-3">
+                    <FaMapMarkerAlt className="mt-0.5 text-white/60" />
+                    <div>
+                      <div className="text-xs uppercase text-white/50">Destination</div>
+                      <div className="text-sm font-semibold text-white">{formData.destination || 'Waiting for inspo'}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FaCalendarAlt className="mt-0.5 text-white/60" />
+                    <div>
+                      <div className="text-xs uppercase text-white/50">Dates</div>
+                      <div className="text-sm font-semibold text-white">
+                        {`${formatDisplayDate(formData.startDate)} → ${formatDisplayDate(formData.endDate)}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FaUsers className="mt-0.5 text-white/60" />
+                    <div>
+                      <div className="text-xs uppercase text-white/50">Travelers</div>
+                      <div className="text-sm font-semibold text-white">{formData.travelers}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FaDollarSign className="mt-0.5 text-white/60" />
+                    <div>
+                      <div className="text-xs uppercase text-white/50">Budget</div>
+                      <div className="text-sm font-semibold text-white">{selectedBudget.label}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FaCalendarAlt className="mt-0.5 text-white/60" />
+                    <div>
+                      <div className="text-xs uppercase text-white/50">Trip Length</div>
+                      <div className="text-sm font-semibold text-white">{tripLength > 0 ? `${tripLength} days` : 'Add your dates'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/15 bg-white/10 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.35)]">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.4em] text-white/60">Interests</h2>
+                <div className="mt-4 space-y-2 text-sm text-white/80">
+                  {selectedInterests.length > 0 ? (
+                    selectedInterests.map(({ id, name }) => (
+                      <div key={id} className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+                        <span>{name}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-white/50">No preferences selected yet.</p>
+                  )}
+                </div>
+              </div>
+            </aside>
           </div>
-        </div>
+
+          <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs font-medium uppercase tracking-[0.4em] text-white/50">
+              {tripLength > 0 ? `${tripLength} DAY BLUEPRINT` : 'SET YOUR DATES TO CALCULATE LENGTH'}
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-full border border-white/20 bg-white/10 px-6 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/20"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={!canSubmit || isGenerating}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 via-emerald-300 to-white px-8 py-2.5 text-sm font-semibold text-slate-900 shadow-[0_18px_38px_rgba(16,185,129,0.35)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGenerating ? (
+                  <>
+                    <FaSpinner className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Itinerary'
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -1,15 +1,23 @@
 // server.js
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
-import dotenv from "dotenv";
-import * as freeDataService from './services/freeDataService.js';
-import path from 'path';
+import path from "path";
 import { fileURLToPath } from 'url';
 import http from 'http';
 import { Server } from 'socket.io';
 import amqp from 'amqplib';
 import { v4 as uuidv4 } from 'uuid';
+import dotenv from "dotenv";
+import fetch from 'node-fetch';
+import tripRoutes from './routes/tripRoutes.js';
+import createHealthRoutes from './routes/healthRoutes.js';
+import weatherRoutes from './routes/weatherRoutes.js';
+import eventsRoutes from './routes/eventsRoutes.js';
+import directionsRoutes from './routes/directionsRoutes.js';
+import itineraryRoutes from './routes/itineraryRoutes.js';
+import compareRoutes from './routes/compareRoutes.js';
+import nearbyRoutes from './routes/nearbyRoutes.js';
+import requestLogger from './middleware/requestLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +28,7 @@ dotenv.config({ path: envPath });
 
 const app = express();
 const server = http.createServer(app); // Create HTTP server from Express app
-
+console.log("Amadeus Key:", process.env.AMADEUS_CLIENT_ID);
 // --- SOCKET.IO CONFIGURATION ---
 const io = new Server(server, {
   path: "/socket.io/",
@@ -48,23 +56,39 @@ const PORT = process.env.PORT || 3000; // Running backend on port 3000
 // Configure CORS for both HTTP and WebSocket
 const corsOptions = {
   origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "x-api-key",
+    "Access-Control-Allow-Origin",
+    "Access-Control-Allow-Headers"
+  ],
+  exposedHeaders: [
+    "Content-Length", 
+    "X-Foo", 
+    "X-Bar"
+  ],
+  credentials: true
 };
 
+// Enable CORS for all routes
 app.use(cors(corsOptions));
 
 // Handle preflight requests
 app.options('*', cors(corsOptions));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', websocket: io.engine.clientsCount });
-});
-
 app.use(express.json());
-
+app.use(requestLogger);
+app.use('/health', createHealthRoutes(io));
+app.use('/api/users', tripRoutes);
+app.use('/api', weatherRoutes);
+app.use('/api', eventsRoutes);
+app.use('/api', directionsRoutes);
+app.use('/api', itineraryRoutes);
+app.use('/api', compareRoutes);
+app.use('/api', nearbyRoutes);
+app.use(express.static(path.join(__dirname, '../build')));
 
 // --- RABBITMQ & WEBSOCKET LOGIC (MCP Integration) ---
 
@@ -134,6 +158,8 @@ io.on('connection', (socket) => {
             payload: {
                 start_city: data.start_city,
                 end_city: data.end_city,
+                start_date: data.start_date,
+                end_date: data.end_date,
                 num_days: parseInt(data.num_days, 10),
             },
         };
@@ -414,179 +440,147 @@ app.post('/api/itinerary', async (req, res) => {
 });
 
 
-// == Compare Destinations API Route ==
-app.post('/api/compare', async (req, res) => {
-  const requestId = Math.random().toString(36).substring(2, 8);
-  console.log(`\n=== New Compare Request (ID: ${requestId}) ===`);
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
+// This endpoint has been consolidated into the /api/compare endpoint above
 
-  try {
-    const { destination1, destination2 } = req.body;
+// Calculate scores based on available data
+function calculateScore(attractions = [], restaurants = []) {
+  // If no data, return neutral scores
+  if ((!attractions || attractions.length === 0) && (!restaurants || restaurants.length === 0)) {
+    return {
+      food: 2.5,
+      culture: 2.5,
+      adventure: 2.5,
+      nightlife: 2.0,
+      shopping: 2.5,
+      overall: 2.5
+    };
+  }
+  
+  // Calculate scores based on number of attractions and restaurants
+  const maxAttractions = 20; // Consider 20+ attractions as maximum
+  const maxRestaurants = 15; // Consider 15+ restaurants as maximum
+  
+  const attractionScore = Math.min(attractions.length / maxAttractions, 1) * 5;
+  const restaurantScore = Math.min(restaurants.length / maxRestaurants, 1) * 5;
+  
+  const scores = {
+    food: parseFloat(restaurantScore.toFixed(1)),
+    culture: parseFloat(attractionScore.toFixed(1)),
+    adventure: parseFloat(((attractionScore * 0.6) + (restaurantScore * 0.4)).toFixed(1)),
+    nightlife: parseFloat((restaurantScore * 0.8).toFixed(1)),
+    shopping: parseFloat(((attractionScore * 0.4) + (restaurantScore * 0.6)).toFixed(1))
+  };
+  
+  // Calculate overall score (weighted average)
+  const weights = {
+    food: 0.2,
+    culture: 0.25,
+    adventure: 0.25,
+    nightlife: 0.15,
+    shopping: 0.15
+  };
+  
+  scores.overall = parseFloat((
+    scores.food * weights.food +
+    scores.culture * weights.culture +
+    scores.adventure * weights.adventure +
+    scores.nightlife * weights.nightlife +
+    scores.shopping * weights.shopping
+  ).toFixed(1));
+  
+  return scores;
+}
 
-    if (!destination1 || !destination2) {
-      const errorMsg = 'Missing required fields: destination1 and destination2';
-      console.error(`[${requestId}] Error: ${errorMsg}`);
-      return res.status(400).json({ error: errorMsg });
+// Generate pros and cons based on data
+function generateProsConsWeather(weather = {}, attractions = [], restaurants = [], destName = '') {
+  const pros = [];
+  const cons = [];
+
+  // Attractions-based pros/cons
+  if (attractions.length > 30) {
+    pros.push(`Rich in cultural heritage (${attractions.length}+ attractions)`);
+  } else if (attractions.length > 10) {
+    pros.push('Plenty of things to see and do');
+  } else if (attractions.length > 5) {
+    pros.push('Good selection of attractions');
+  } else if (attractions.length <= 3) {
+    cons.push('Limited tourist attractions');
+  }
+
+  // Restaurants-based pros/cons
+  if (restaurants.length > 8) {
+    pros.push('Excellent dining scene');
+  } else if (restaurants.length > 5) {
+    pros.push('Good variety of restaurants');
+  } else if (restaurants.length <= 2) {
+    cons.push('Limited dining options');
+  }
+
+  // Weather-based pros/cons
+  if (weather && weather.temp !== undefined) {
+    if (weather.temp >= 20 && weather.temp <= 28) {
+      pros.push(`Perfect weather (${weather.temp}°C)`);
+    } else if (weather.temp > 28 && weather.temp <= 32) {
+      pros.push('Warm and sunny climate');
+    } else if (weather.temp > 32) {
+      cons.push(`Very hot weather (${weather.temp}°C)`);
+    } else if (weather.temp < 10) {
+      cons.push(`Cold weather (${weather.temp}°C)`);
+    } else if (weather.temp >= 10 && weather.temp < 20) {
+      pros.push('Cool and comfortable temperature');
     }
 
-    console.log(`[${requestId}] Fetching comparison data for ${destination1} vs ${destination2}`);
-
-    // Fetch data for both destinations in parallel
-    const [dest1Attractions, dest2Attractions, dest1Restaurants, dest2Restaurants, dest1Weather, dest2Weather] = await Promise.all([
-      freeDataService.getAttractions(destination1, 'medium'),
-      freeDataService.getAttractions(destination2, 'medium'),
-      freeDataService.getRestaurants(destination1, 'medium'),
-      freeDataService.getRestaurants(destination2, 'medium'),
-      freeDataService.getWeather(destination1),
-      freeDataService.getWeather(destination2)
-    ]);
-
-    // Calculate scores based on available data
-    const calculateScore = (attractions, restaurants) => {
-      const attractionScore = Math.min(attractions.length / 10, 1) * 5;
-      const restaurantScore = Math.min(restaurants.length / 10, 1) * 5;
-      return {
-        food: restaurantScore,
-        culture: attractionScore,
-        adventure: (attractionScore + restaurantScore) / 2,
-        nightlife: restaurantScore * 0.8,
-        shopping: (attractionScore + restaurantScore) / 2 * 0.9
-      };
-    };
-
-    const dest1Scores = calculateScore(dest1Attractions, dest1Restaurants);
-    const dest2Scores = calculateScore(dest2Attractions, dest2Restaurants);
-
-    // Generate pros and cons based on data
-    const generateProsConsWeather = (weather, attractions, restaurants, destName) => {
-      const pros = [];
-      const cons = [];
-
-      // Attractions-based pros/cons
-      if (attractions.length > 30) {
-        pros.push(`Rich in cultural heritage (${attractions.length}+ attractions)`);
-      } else if (attractions.length > 10) {
-        pros.push('Plenty of things to see and do');
-      } else if (attractions.length > 5) {
-        pros.push('Good selection of attractions');
-      } else if (attractions.length <= 3) {
-        cons.push('Limited tourist attractions');
-      }
-
-      // Restaurants-based pros/cons
-      if (restaurants.length > 8) {
-        pros.push('Excellent dining scene');
-      } else if (restaurants.length > 5) {
-        pros.push('Good variety of restaurants');
-      } else if (restaurants.length <= 2) {
-        cons.push('Limited dining options');
-      }
-
-      // Weather-based pros/cons
-      if (weather && weather.temp !== undefined) {
-        if (weather.temp >= 20 && weather.temp <= 28) {
-          pros.push(`Perfect weather (${weather.temp}°C)`);
-        } else if (weather.temp > 28 && weather.temp <= 32) {
-          pros.push('Warm and sunny climate');
-        } else if (weather.temp > 32) {
-          cons.push(`Very hot weather (${weather.temp}°C)`);
-        } else if (weather.temp < 10) {
-          cons.push(`Cold weather (${weather.temp}°C)`);
-        } else if (weather.temp >= 10 && weather.temp < 20) {
-          pros.push('Cool and comfortable temperature');
-        }
-
-        // Weather description based insights
-        if (weather.description && weather.description.includes('clear')) {
-          pros.push('Clear skies for sightseeing');
-        } else if (weather.description && weather.description.includes('rain')) {
-          cons.push('Rainy conditions');
-        }
-      }
-
-      // Ensure we always have at least some pros/cons
-      if (pros.length === 0) {
-        pros.push('Unique travel destination');
-        pros.push('Authentic local experience');
-      }
-      if (cons.length === 0) {
-        cons.push('Check visa requirements');
-        cons.push('Plan transportation ahead');
-      }
-
-      // Limit to top 4 of each
-      return { pros: pros.slice(0, 4), cons: cons.slice(0, 4) };
-    };
-
-    const dest1ProsCons = generateProsConsWeather(dest1Weather, dest1Attractions, dest1Restaurants);
-    const dest2ProsCons = generateProsConsWeather(dest2Weather, dest2Attractions, dest2Restaurants);
-
-    const comparisonData = {
-      destination1: {
-        name: destination1,
-        rating: (Object.values(dest1Scores).reduce((a, b) => a + b, 0) / Object.keys(dest1Scores).length).toFixed(1),
-        reviews: `${dest1Attractions.length + dest1Restaurants.length}`,
-        description: `Explore ${destination1} with ${dest1Attractions.length} attractions and ${dest1Restaurants.length} restaurants`,
-        price: dest1Restaurants.length > 5 ? '$$' : dest1Restaurants.length > 10 ? '$$$' : '$',
-        bestTime: dest1Weather ? `${dest1Weather.description}` : 'Check local weather',
-        avgTemp: dest1Weather ? `${Math.round(dest1Weather.temp)}°C` : 'N/A',
-        highlights: dest1Attractions.slice(0, 4).map(a => a.name),
-        categories: dest1Scores,
-        pros: dest1ProsCons.pros,
-        cons: dest1ProsCons.cons,
-        weather: dest1Weather
-      },
-      destination2: {
-        name: destination2,
-        rating: (Object.values(dest2Scores).reduce((a, b) => a + b, 0) / Object.keys(dest2Scores).length).toFixed(1),
-        reviews: `${dest2Attractions.length + dest2Restaurants.length}`,
-        description: `Explore ${destination2} with ${dest2Attractions.length} attractions and ${dest2Restaurants.length} restaurants`,
-        price: dest2Restaurants.length > 5 ? '$$' : dest2Restaurants.length > 10 ? '$$$' : '$',
-        bestTime: dest2Weather ? `${dest2Weather.description}` : 'Check local weather',
-        avgTemp: dest2Weather ? `${Math.round(dest2Weather.temp)}°C` : 'N/A',
-        highlights: dest2Attractions.slice(0, 4).map(a => a.name),
-        categories: dest2Scores,
-        pros: dest2ProsCons.pros,
-        cons: dest2ProsCons.cons,
-        weather: dest2Weather
-      }
-    };
-
-    console.log(`[${requestId}] ✅ Comparison data generated successfully`);
-    res.json(comparisonData);
-
-  } catch (error) {
-    console.error(`[${requestId}] Error generating comparison:`, error);
-    res.status(500).json({ error: 'Failed to generate comparison', message: error.message });
+    // Weather description based insights
+    if (weather.description && weather.description.includes('clear')) {
+      pros.push('Clear skies for sightseeing');
+    } else if (weather.description && weather.description.includes('rain')) {
+      cons.push('Rainy conditions');
+    }
   }
+
+  // Ensure we always have at least some pros/cons
+  if (pros.length === 0) {
+    pros.push('Unique travel destination');
+    pros.push('Authentic local experience');
+  }
+  if (cons.length === 0) {
+    cons.push('Limited information available');
+  }
+
+  return { pros, cons };
+}
+
+// --- STATIC FRONTEND BUILD (for production) ---
+app.use(express.static(path.join(__dirname, "client", "dist")));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
 });
 
-app.post('/api/plan-trip-mcp', async (req, res) => {
-  const orchestrator = new Orchestrator();
-  try {
-    const plan = await orchestrator.planTrip(req.body);
-    res.json(plan);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to plan trip', message: error.message });
-  }
+// --- ERROR HANDLER ---
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ 
+    error: 'Something went wrong!',
+    message: err.message 
+  });
 });
+
 // --- START SERVER ---
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
   console.log(`WebSocket server is running on ws://0.0.0.0:${PORT}/socket.io/`);
-  
-  // Log when the server is ready
   console.log('Server is ready to accept connections');
   
-  // Connect to RabbitMQ
-  connectRabbitMQ().catch(console.error);
+  // Connect to RabbitMQ if enabled
+  if (process.env.ENABLE_RABBITMQ === 'true') {
+    connectRabbitMQ().catch(console.error);
+  }
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err);
 });
-
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);

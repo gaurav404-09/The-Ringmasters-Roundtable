@@ -1,0 +1,471 @@
+{
+  "XMeb6ExedcM8TPjbR3MqPaTNkRs2": [
+    {
+      "id": "3e3ce899-ed0e-4b15-a5ba-a42a0a63212a",
+      "createdAt": "2025-10-07T16:58:19.833Z",
+      "updatedAt": "2025-10-07T16:58:19.833Z",
+      "title": "surat → prayagraj",
+      "startCity": "surat",
+      "endCity": "prayagraj",
+      "numDays": 4,
+      "requestedAt": "2025-10-07T16:58:19.820Z",
+      "orchestrationLogs": [
+        "Trip request sent for surat to prayagraj.",
+        "Contacting Map Agent for route...",
+        "Contacting Weather Agent for forecasts...",
+        "Contacting Itinerary Agent to build activities...",
+        "Contacting Event Agent for local events...",
+        "Trip plan is complete! Sending result...",
+        "Orchestrator delivered the final itinerary."
+      ],
+      "result": {
+        "trip_id": "c140e965-dbd4-48de-82f3-1bf7ab254e86",
+        "itinerary": [
+          {
+            "day": 1,
+            "city": "surat",
+            "weather": {
+              "weather": "clear sky",
+              "temp": 25.46
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Children's Traffic Park",
+                "notes": "Interesting place",
+                "location": "21.1783608, 72.8144049"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at custom",
+                "notes": "Enjoy Local cuisine",
+                "location": "21.1868105, 72.8222109"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at custom",
+                "notes": "Relaxed dinner",
+                "location": "21.1868105, 72.8222109"
+              }
+            ]
+          },
+          {
+            "day": 2,
+            "city": "Indore",
+            "weather": {
+              "weather": "clear sky",
+              "temp": 20.39
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Central Museum - Indore",
+                "notes": "museum",
+                "location": "22.7052316, 75.8793076"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at Jain Mithai Bhandar(JMB)",
+                "notes": "Enjoy Local cuisine",
+                "location": "22.727255, 75.8945618"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at Kabeer roasted chicken",
+                "notes": "Relaxed dinner",
+                "location": "22.7138033, 75.8745714"
+              }
+            ]
+          },
+          {
+            "day": 3,
+            "city": "Sagar",
+            "weather": {
+              "weather": "broken clouds",
+              "temp": 22.79
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Dr Harisingh Gour  park",
+                "notes": "Interesting place",
+                "location": "23.8384455, 78.7508487"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at Mezbaan Non veg restaurant sagar",
+                "notes": "Enjoy Local cuisine",
+                "location": "23.8267052, 78.7643599"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at Yadav Dhaba",
+                "notes": "Relaxed dinner",
+                "location": "23.7887313, 78.7613998"
+              }
+            ]
+          },
+          {
+            "day": 4,
+            "city": "prayagraj",
+            "weather": {
+              "weather": "broken clouds",
+              "temp": 28.23
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Ghanta Ghar",
+                "notes": "monument",
+                "location": "25.4388935, 81.8340498"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at Hot Stuff",
+                "notes": "Enjoy Local cuisine",
+                "location": "25.4527005, 81.8346442"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at CHICAGO PIZZA",
+                "notes": "Relaxed dinner",
+                "location": "25.4520503, 81.8352836"
+              }
+            ]
+          }
+        ],
+        "events": {
+          "surat": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "surat Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1562046030-101e60ae2c75?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyNzJ8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "surat Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1533167751327-4091607cecc5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyNzR8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ],
+          "Indore": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "Indore Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1614442848457-36ddcbb0876d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyNzV8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "Indore Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1710983165044-0cc32d1aab4b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyNzZ8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ],
+          "Sagar": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "Sagar Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1702943545400-ea5b75e3d32c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyNzd8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "Sagar Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1662923449070-2de3396e867d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyNzh8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ],
+          "prayagraj": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "prayagraj Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1707344238703-d2d5a3fb1cd4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyNzl8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "prayagraj Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1556760891-018194410847?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4NTYyODB8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3d2ef31b-1423-47f6-ad90-bb4961c3165e",
+      "createdAt": "2025-10-07T11:31:25.398Z",
+      "updatedAt": "2025-10-07T11:31:25.398Z",
+      "title": "Delhi → Goa",
+      "startCity": "Delhi",
+      "endCity": "Goa",
+      "numDays": 5,
+      "requestedAt": "2025-10-07T11:31:25.326Z",
+      "orchestrationLogs": [
+        "Trip request sent for Delhi to Goa.",
+        "Contacting Map Agent for route...",
+        "Contacting Weather Agent for forecasts...",
+        "Contacting Itinerary Agent to build activities...",
+        "Contacting Event Agent for local events...",
+        "Orchestrator delivered the final itinerary.",
+        "Trip plan is complete! Sending result..."
+      ],
+      "result": {
+        "trip_id": "cac93fc7-c348-4e68-9349-67678f801969",
+        "itinerary": [
+          {
+            "day": 1,
+            "city": "Delhi",
+            "weather": {
+              "weather": "scattered clouds",
+              "temp": 30.5
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Dandi March Statue (11 Murthi)",
+                "notes": "attraction",
+                "location": "28.6100877, 77.1916453"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at Hotel Metropolis",
+                "notes": "Enjoy international cuisine",
+                "location": "28.6407045, 77.2105994"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at Berco's",
+                "notes": "Relaxed dinner",
+                "location": "28.6323764, 77.2172154"
+              }
+            ]
+          },
+          {
+            "day": 2,
+            "city": "Ujjain",
+            "weather": {
+              "weather": "few clouds",
+              "temp": 28.06
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit religious monuments",
+                "notes": "attraction",
+                "location": "23.1827698, 75.7656586"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at Baker's Lounge",
+                "notes": "Enjoy Local cuisine",
+                "location": "23.1785597, 75.7905"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at Maa Sherawali",
+                "notes": "Relaxed dinner",
+                "location": "23.2017155, 75.7726024"
+              }
+            ]
+          },
+          {
+            "day": 3,
+            "city": "Dhule",
+            "weather": {
+              "weather": "overcast clouds",
+              "temp": 30.45
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Dhule City Walk",
+                "notes": "Explore the city center",
+                "location": "Dhule"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at a local restaurant",
+                "notes": "Enjoy Local cuisine",
+                "location": "Dhule"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at a local restaurant",
+                "notes": "Relaxed dinner",
+                "location": "Dhule"
+              }
+            ]
+          },
+          {
+            "day": 4,
+            "city": "Satara",
+            "weather": {
+              "weather": "overcast clouds",
+              "temp": 28.13
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Satara City Walk",
+                "notes": "Explore the city center",
+                "location": "Satara"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at a local restaurant",
+                "notes": "Enjoy Local cuisine",
+                "location": "Satara"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at a local restaurant",
+                "notes": "Relaxed dinner",
+                "location": "Satara"
+              }
+            ]
+          },
+          {
+            "day": 5,
+            "city": "Goa",
+            "weather": {
+              "weather": "overcast clouds",
+              "temp": 27.6
+            },
+            "activities": [
+              {
+                "time": "09:00",
+                "title": "Visit Goa City Walk",
+                "notes": "Explore the city center",
+                "location": "Goa"
+              },
+              {
+                "time": "12:30",
+                "title": "Lunch at a local restaurant",
+                "notes": "Enjoy Local cuisine",
+                "location": "Goa"
+              },
+              {
+                "time": "19:00",
+                "title": "Dinner at a local restaurant",
+                "notes": "Relaxed dinner",
+                "location": "Goa"
+              }
+            ]
+          }
+        ],
+        "events": {
+          "Delhi": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "Delhi Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1630353174704-72da2fe9298e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2MzZ8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "Delhi Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1602430487217-775069696b55?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2NDV8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ],
+          "Ujjain": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "Ujjain Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1593507721017-4072754a93ba?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2NDd8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "Ujjain Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1564047552822-da911fc5f6df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2NDh8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ],
+          "Dhule": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "Dhule Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1659439267828-1361cf9f9914?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2NTB8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "Dhule Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1707635569223-c759b3b0501b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2NTN8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ],
+          "Satara": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "Satara Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1634731755428-03cf85f13fd5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2NTV8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "Satara Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1699497608667-79535fbfa0f7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2NjR8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ],
+          "Goa": [
+            {
+              "title": "Local Music Fest",
+              "date": "Upcoming",
+              "location": "Goa Central Park",
+              "description": "Enjoy live music from local bands.",
+              "category": "music",
+              "imageUrl": "https://images.unsplash.com/photo-1695277789119-327db9fae6f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2Njh8&ixlib=rb-4.1.0&q=80&w=1080"
+            },
+            {
+              "title": "Artisan Food Market",
+              "date": "This Weekend",
+              "location": "Goa Town Square",
+              "description": "Taste and buy local delicacies.",
+              "category": "food",
+              "imageUrl": "https://images.unsplash.com/photo-1758346972070-547c770d96ab?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4MTE3NTZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NTk4MzY2Njl8&ixlib=rb-4.1.0&q=80&w=1080"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "4eq41sfShSVCbzMBWOKREAB7uxB2": []
+}
