@@ -2,6 +2,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from 'url';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -18,17 +19,28 @@ import itineraryRoutes from './routes/itineraryRoutes.js';
 import compareRoutes from './routes/compareRoutes.js';
 import nearbyRoutes from './routes/nearbyRoutes.js';
 import requestLogger from './middleware/requestLogger.js';
+import { getFlights, getHotels } from './services/amadeus.js';
+import { getTrains } from './services/trains.js';
+import { findCheapestTrip } from './services/optimizer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load environment variables from the root .env file
-const envPath = path.resolve(__dirname, '../.env');
-dotenv.config({ path: envPath });
+const rootEnvPath = path.resolve(__dirname, '../.env');
+dotenv.config({ path: rootEnvPath });
+const backendEnvPath = path.resolve(__dirname, '.env');
+dotenv.config({ path: backendEnvPath, override: true });
 
 const app = express();
 const server = http.createServer(app); // Create HTTP server from Express app
 console.log("Amadeus Key:", process.env.AMADEUS_CLIENT_ID);
+
+const ENABLE_RABBITMQ = process.env.ENABLE_RABBITMQ === 'true';
+const clientDistPath = path.join(__dirname, "client", "dist");
+const hasClientBuild = fs.existsSync(clientDistPath);
+
+const allowedOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
 // --- SOCKET.IO CONFIGURATION ---
 const io = new Server(server, {
   path: "/socket.io/",
@@ -53,7 +65,7 @@ const PORT = process.env.PORT || 3000; // Running backend on port 3000
 // --- MIDDLEWARE ---
 // Configure CORS for both HTTP and WebSocket
 const corsOptions = {
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+  origin: allowedOrigins,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type", 
@@ -86,7 +98,9 @@ app.use('/api', directionsRoutes);
 app.use('/api', itineraryRoutes);
 app.use('/api', compareRoutes);
 app.use('/api', nearbyRoutes);
-app.use(express.static(path.join(__dirname, '../build')));
+if (hasClientBuild) {
+  app.use(express.static(clientDistPath));
+}
 
 // --- RABBITMQ & WEBSOCKET LOGIC (MCP Integration) ---
 
@@ -96,6 +110,7 @@ const tripSubscribers = new Map(); // Maps trip_id to a client's socket.id
 
 async function connectRabbitMQ() {
     try {
+        console.log(' [Server] Attempting to connect to RabbitMQ...');
         const connection = await amqp.connect(RABBITMQ_URL);
         const channel = await connection.createChannel();
         console.log(' [Server] Connected to RabbitMQ');
@@ -133,9 +148,16 @@ async function connectRabbitMQ() {
         
         amqpChannel = channel;
     } catch (error) {
-        console.error(' [Server] RabbitMQ connection error. Retrying...', error);
+        console.error(' [Server] RabbitMQ connection error. Retrying in 5 seconds...', error.message);
         setTimeout(connectRabbitMQ, 5000);
     }
+}
+
+// Only attempt to connect to RabbitMQ if enabled
+if (ENABLE_RABBITMQ) {
+    connectRabbitMQ().catch(console.error);
+} else {
+    console.log(' [Server] RabbitMQ is disabled (ENABLE_RABBITMQ is not set to true)');
 }
 
 io.on('connection', (socket) => {
@@ -143,8 +165,11 @@ io.on('connection', (socket) => {
 
     // This is the new endpoint for planning a trip with the agent system
     socket.on('plan_trip', (data) => {
-        if (!amqpChannel) {
-            return socket.emit('status_update', { message: 'Error: Backend is not ready.' });
+        if (!ENABLE_RABBITMQ || !amqpChannel) {
+            return socket.emit('status_update', { 
+                error: 'RabbitMQ is not enabled or not connected',
+                message: 'This feature requires RabbitMQ to be enabled and running.' 
+            });
         }
         
         const trip_id = uuidv4();
@@ -549,10 +574,14 @@ function generateProsConsWeather(weather = {}, attractions = [], restaurants = [
 }
 
 // --- STATIC FRONTEND BUILD (for production) ---
-app.use(express.static(path.join(__dirname, "client", "dist")));
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
-});
+if (hasClientBuild) {
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 // --- ERROR HANDLER ---
 app.use((err, req, res, next) => {
@@ -562,7 +591,6 @@ app.use((err, req, res, next) => {
     message: err.message 
   });
 });
-
 // --- START SERVER ---
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
@@ -583,4 +611,567 @@ process.on('unhandledRejection', (err) => {
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
   process.exit(1);
+});
+// Flight search endpoint
+app.get('/api/flights', async (req, res) => {
+  try {
+    const { origin, destination, date } = req.query;
+    
+    if (!origin || !destination || !date) {
+      return res.status(400).json({
+        error: 'Missing required parameters: origin, destination, and date are required'
+      });
+    }
+    
+    // getFlights from services/amadeus.js handles token retrieval internally
+    const flights = await getFlights(origin, destination, date);
+    res.json(flights);
+  } catch (error) {
+    console.error('Flight search error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch flights',
+      details: error.message
+    });
+  }
+});
+
+// Train search endpoint (support both /api/trains and /trains/getTrainOn for backward compatibility)
+app.get(['/api/trains', '/trains/getTrainOn'], async (req, res) => {
+  try {
+    const { from, to, date } = req.query;
+    
+    if (!from || !to || !date) {
+      return res.status(400).json({
+        error: 'Missing required parameters: from, to, and date are required'
+      });
+    }
+    
+    // Placeholder response - implement actual train search logic here
+    res.json({
+      message: 'Train search endpoint',
+      from,
+      to,
+      date,
+      trains: []
+    });
+  } catch (error) {
+    console.error('Train search error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch trains',
+      details: error.message
+    });
+  }
+});
+
+
+// Initialize data fetching (demo logging only)
+console.log("Fetching data...");
+
+(async () => {
+  try {
+    const defaultOrigin = 'DEL';
+    const defaultDestination = 'BOM';
+    const today = new Date();
+    const defaultDate = today.toISOString().split('T')[0];
+    const checkoutDateObj = new Date(today);
+    checkoutDateObj.setDate(checkoutDateObj.getDate() + 1);
+    const defaultCheckOut = checkoutDateObj.toISOString().split('T')[0];
+
+    const [flights, hotels, trains] = await Promise.all([
+      getFlights(defaultOrigin, defaultDestination, defaultDate).catch(err => {
+        console.error('Error fetching flights:', err.message);
+        return [];
+      }),
+      getHotels(defaultDestination, defaultDate, defaultCheckOut, 1, defaultDestination).catch(err => {
+        console.error('Error fetching hotels:', err.message);
+        return [];
+      }),
+      getTrains(defaultOrigin, defaultDestination, defaultDate).catch(err => {
+        console.error('Error fetching trains:', err.message);
+        return [];
+      }),
+    ]);
+
+    console.log("Flights fetched:", Array.isArray(flights) ? flights.length : 0);
+    console.log("Hotels fetched:", Array.isArray(hotels) ? hotels.length : 0);
+    console.log("Trains fetched:", Array.isArray(trains) ? trains.length : 0);
+
+    const cheapestTrip = findCheapestTrip(flights, trains, hotels);
+    console.log("Cheapest Trip:", cheapestTrip ? 'available' : 'none');
+  } catch (err) {
+    console.error("Error fetching travel data:", err.message);
+  }
+})();
+
+// ====== Travel Route ======
+// Common IATA airport codes for validation
+const IATA_CODES = new Set([
+  'DEL', 'BOM', 'MAA', 'BLR', 'HYD', 'CCU', 'GOI', 'COK', 'PNQ', 'AMD', 'JAI',
+  'SIN', 'BKK', 'DXB', 'LHR', 'JFK', 'LAX', 'CDG', 'FRA', 'HKG', 'SYD'
+]);
+
+const IATA_TO_RAIL_STATION = {
+  BOM: 'CSMT',
+  DEL: 'NDLS',
+  HYD: 'HYB',
+  BLR: 'SBC',
+  MAA: 'MAS',
+  CCU: 'HWH',
+  GOI: 'MAO',
+  COK: 'ERS',
+  PNQ: 'PUNE',
+  AMD: 'ADI',
+  JAI: 'JP',
+  BBI: 'BBS',
+  LKO: 'LKO',
+  PAT: 'PNBE',
+  GAU: 'GHY'
+};
+
+const getRailStationCode = (iataCode) => {
+  if (!iataCode) return '';
+  return IATA_TO_RAIL_STATION[iataCode] || iataCode;
+};
+
+
+/**
+ * GET /api/travel - Search for travel options
+ * Query parameters:
+ *   - origin: 3-letter IATA code (e.g., DEL, BOM)
+ *   - destination: 3-letter IATA code
+ *   - date: Departure date in YYYY-MM-DD format
+ *   - checkInDate: Check-in date in YYYY-MM-DD format (defaults to departure date)
+ *   - checkOutDate: Check-out date in YYYY-MM-DD format (required for hotels)
+ *   - adults: Number of adults (default: 1)
+ */
+app.get("/api/travel", async (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 8);
+  console.log(`\n=== New Travel Request (ID: ${requestId}) ===`);
+  
+  try {
+    // Extract parameters
+    const origin = String(req.query.origin || '').trim().toUpperCase();
+    const destination = String(req.query.destination || '').trim().toUpperCase();
+    const date = String(req.query.date || '').trim();
+    const checkInDate = String(req.query.checkInDate || date).trim();
+    const checkOutDate = String(req.query.checkOutDate || '').trim();
+    const adults = parseInt(req.query.adults) || 1;
+    
+    // Log raw parameters for debugging
+    console.log(`[${requestId}] Raw parameters:`, {
+      origin,
+      destination,
+      date,
+      checkInDate,
+      checkOutDate,
+      adults
+    });
+
+    // Log request for debugging
+    console.log(`[${requestId}] Request:`, {
+      origin,
+      destination,
+      date,
+      checkInDate,
+      checkOutDate,
+      adults
+    });
+
+    // Validate parameters
+    const errors = [];
+    const today = new Date().toISOString().split('T')[0];
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    // Validate IATA codes format (3 uppercase letters)
+    const iataRegex = /^[A-Z]{3}$/;
+    if (!origin || !iataRegex.test(origin)) {
+      errors.push(`Invalid origin: '${origin}'. Must be a 3-letter IATA code (e.g., DEL, BOM)`);
+    } else if (!IATA_CODES.has(origin)) {
+      console.warn(`[${requestId}] Warning: Origin '${origin}' is not in the list of known IATA codes`);
+    }
+    
+    if (!destination || !iataRegex.test(destination)) {
+      errors.push(`Invalid destination: '${destination}'. Must be a 3-letter IATA code`);
+    } else if (!IATA_CODES.has(destination)) {
+      console.warn(`[${requestId}] Warning: Destination '${destination}' is not in the list of known IATA codes`);
+    }
+    
+    // Validate dates
+    if (!date || !dateRegex.test(date)) {
+      errors.push(`Invalid date format: '${date}'. Use YYYY-MM-DD`);
+    } else if (date < today) {
+      errors.push(`Departure date cannot be in the past: ${date}`);
+    }
+
+    if (!checkInDate || !dateRegex.test(checkInDate)) {
+      errors.push(`Invalid check-in date: '${checkInDate}'. Use YYYY-MM-DD`);
+    } else if (checkInDate < today) {
+      errors.push(`Check-in date cannot be in the past: ${checkInDate}`);
+    }
+
+    if (!checkOutDate || !dateRegex.test(checkOutDate)) {
+      errors.push(`Invalid check-out date: '${checkOutDate}'. Use YYYY-MM-DD`);
+    } else if (checkOutDate <= checkInDate) {
+      errors.push(`Check-out date must be after check-in date (${checkInDate} < ${checkOutDate})`);
+    }
+
+      // Return validation errors if any
+      if (errors.length > 0) {
+        console.error(`[${requestId}] Validation failed:`, errors);
+        return res.status(400).json({ 
+          success: false,
+          errors,
+          requestId,
+          receivedParams: req.query
+        });
+      }
+
+      console.log(`[${requestId}] Fetching travel data for ${origin} to ${destination} on ${date}`);
+      console.log(`[${requestId}] Check-in: ${checkInDate}, Check-out: ${checkOutDate}, Adults: ${adults}`);
+      
+      // Log environment variables (without sensitive data)
+      console.log(`[${requestId}] Environment:`, {
+        NODE_ENV: process.env.NODE_ENV,
+        AMADEUS_CLIENT_ID: process.env.AMADEUS_CLIENT_ID ? '***' + process.env.AMADEUS_CLIENT_ID.slice(-4) : 'MISSING',
+        AMADEUS_CLIENT_SECRET: process.env.AMADEUS_CLIENT_SECRET ? '***' + process.env.AMADEUS_CLIENT_SECRET.slice(-4) : 'MISSING'
+      });
+
+      // City code mapping for common cities (case-insensitive)
+      const cityCodeMap = {
+        'bombay': 'BOM',
+        'bangalore': 'BLR',
+        'chennai': 'MAA',
+        'kolkata': 'CCU',
+        'hyderabad': 'HYD',
+        'pune': 'PNQ',
+        'ahmedabad': 'AMD',
+        'goa': 'GOI',
+      'kochi': 'COK',
+      'jaipur': 'JAI',
+      'lucknow': 'LKO',
+      'patna': 'PAT',
+      'guwahati': 'GAU',
+      'chandigarh': 'IXC',
+      'amritsar': 'ATQ',
+      'varanasi': 'VNS',
+      'indore': 'IDR',
+      'bhopal': 'BHO',
+      'raipur': 'RPR',
+      'nagpur': 'NAG',
+      'vadodara': 'BDQ',
+      'surat': 'STV',
+      'rajkot': 'RAJ',
+      'bhubaneswar': 'BBI',
+      'visakhapatnam': 'VTZ',
+      'coimbatore': 'CJB',
+      'kozhikode': 'CCJ',
+      'mangalore': 'IXE',
+      'goa': 'GOI',
+      'srinagar': 'SXR',
+      'jammu': 'IXJ',
+      'leh': 'IXL',
+      'shimla': 'SLV',
+      'manali': 'KUU',
+      'dharamshala': 'DHM',
+      'dehradun': 'DED',
+      'udaipur': 'UDR',
+      'jodhpur': 'JDH',
+      'jaisalmer': 'JSA',
+      'jabalpur': 'JLR',
+      'gwalior': 'GWL',
+      'bikaner': 'BKB',
+      'jodhpur': 'JDH',
+      'jaisalmer': 'JSA',
+      'jabalpur': 'JLR',
+      'gwalior': 'GWL',
+      'bikaner': 'BKB',
+      'jodhpur': 'JDH',
+      'jaisalmer': 'JSA',
+      'jabalpur': 'JLR',
+      'gwalior': 'GWL',
+      'bikaner': 'BKB'
+    };
+
+    // Convert input to IATA code when needed: if already a 3-letter code, keep it; otherwise map common city names
+    const getCityCode = (place) => {
+      if (!place) return 'DEL';
+      const str = place.toString().trim();
+      const upper = str.toUpperCase();
+      // If it's already a 3-letter code, use it directly
+      if (/^[A-Z]{3}$/.test(upper)) return upper;
+      // Otherwise map known city names (case-insensitive)
+      const lower = str.toLowerCase();
+      return cityCodeMap[lower] || 'DEL';
+    };
+
+    const originCode = getCityCode(origin);
+    const destCode = getCityCode(destination);
+
+    // Log the converted codes for debugging
+    console.log(`[${requestId}] Converted city codes:`, { origin, originCode, destination, destCode });
+    const originRailCode = getRailStationCode(originCode);
+    const destRailCode = getRailStationCode(destCode);
+    console.log(`[${requestId}] Rail station codes:`, { originRailCode, destRailCode });
+    
+    // Validate date format (YYYY-MM-DD)
+    if (!dateRegex.test(date)) {
+      throw new Error('Invalid date format. Please use YYYY-MM-DD');
+    }
+
+    // Prepare hotel check-in/check-out dates with validation
+    let hotelCheckIn, hotelCheckOut;
+    try {
+      hotelCheckIn = checkInDate || date;
+      
+      // If no check-out date provided, default to check-in + 1 day
+      if (!checkOutDate) {
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        hotelCheckOut = nextDay.toISOString().split('T')[0];
+      } else {
+        hotelCheckOut = checkOutDate;
+      }
+      
+      // Final validation of dates
+      if (new Date(hotelCheckOut) <= new Date(hotelCheckIn)) {
+        throw new Error('Check-out date must be after check-in date');
+      }
+    } catch (error) {
+      console.error(`[${requestId}] Error processing dates:`, error);
+      errors.push(`Invalid date range: ${error.message}`);
+    }
+    
+    console.log(`[${requestId}] Starting data fetch...`);
+    console.log(`[${requestId}] Flight search: ${originCode} -> ${destCode} on ${date}`);
+    console.log(`[${requestId}] Hotel search: ${destCode} from ${hotelCheckIn} to ${hotelCheckOut}`);
+    console.log(`[${requestId}] Train search: ${originRailCode} -> ${destRailCode} on ${date}`);
+    
+    // Fetch data in parallel
+    const [flightsRaw, hotelsRaw, rawTrains] = await Promise.all([
+      // Flights
+      (async () => {
+        try {
+          const data = await getFlights(originCode, destCode, date);
+          console.log(`[${requestId}] Successfully fetched ${data?.length || 0} flights`);
+          if (data.length === 0) {
+            console.log(`[${requestId}] No flights found. This could be due to no availability or API limits.`);
+          } else {
+            console.log(`[${requestId}] Sample flight:`, JSON.stringify(data[0], null, 2));
+          }
+          return data || [];
+        } catch (err) {
+          console.error(`[${requestId}] Error fetching flights:`, err.message);
+          console.error(`[${requestId}] Error stack:`, err.stack);
+          return [];
+        }
+      })(),
+      
+      // Hotels
+      (async () => {
+        try {
+          const data = await getHotels(destCode, hotelCheckIn, hotelCheckOut, adults, destination);
+          console.log(`[${requestId}] Successfully fetched ${data?.length || 0} hotels`);
+          if (data.length === 0) {
+            console.log(`[${requestId}] No hotels found. This could be due to no availability or API limits.`);
+          } else {
+            console.log(`[${requestId}] Sample hotel:`, JSON.stringify(data[0], null, 2));
+          }
+          return data || [];
+        } catch (err) {
+          console.error(`[${requestId}] Error fetching hotels:`, err.message);
+          console.error(`[${requestId}] Error stack:`, err.stack);
+          return [];
+        }
+      })(),
+        
+      // Trains
+      (async () => {
+        try {
+          const data = await getTrains(originRailCode, destRailCode, date);
+          console.log(`[${requestId}] Successfully fetched ${data?.length || 0} trains`);
+          return data || [];
+        } catch (err) {
+          console.error(`[${requestId}] Error fetching trains:`, err);
+          return [];
+        }
+      })()
+    ]);
+
+    const flights = Array.isArray(flightsRaw) ? flightsRaw : [];
+    const hotels = Array.isArray(hotelsRaw) ? hotelsRaw : [];
+    const trainsSource = Array.isArray(rawTrains) ? rawTrains : [];
+
+    if (!flights.length) {
+      console.warn(`[${requestId}] No flight data available after processing.`);
+    }
+    if (!hotels.length) {
+      console.warn(`[${requestId}] No hotel data available after processing.`);
+    }
+    if (!trainsSource.length) {
+      console.warn(`[${requestId}] No train data available after processing.`);
+    }
+
+    // Log data for debugging
+    console.log(`[${requestId}] Data used:`);
+    console.log(`[${requestId}] Flights (${flights.length}):`, JSON.stringify(flights, null, 2));
+    console.log(`[${requestId}] Hotels (${hotels.length}):`, JSON.stringify(hotels, null, 2));
+    console.log(`[${requestId}] Trains (${trainsSource.length}):`, JSON.stringify(trainsSource, null, 2));
+
+    // Format trains data to match frontend expectations
+    const formattedTrainsRaw = trainsSource.map((train) => {
+      const trainData = train.train_base || {};
+      const formattedTrain = {
+        type: 'train',
+        provider: 'Indian Railways',
+        from: trainData.from_stn_name || train.from || origin.toUpperCase(),
+        to: trainData.to_stn_name || train.to || destination.toUpperCase(),
+        fromCode: trainData.from_stn_code || origin.slice(0, 3).toUpperCase(),
+        toCode: trainData.to_stn_code || destination.slice(0, 3).toUpperCase(),
+        price: (Number.isFinite(Number(train.price)) ? Number(train.price) : undefined),
+        currency: Number.isFinite(Number(train.price)) ? 'INR' : undefined,
+        duration: trainData.travel_time || 'N/A',
+        details: {
+          trainName: trainData.train_name || 'Express',
+          trainNumber: trainData.train_no || 'N/A',
+          departureTime: trainData.from_time || 'N/A',
+          arrivalTime: trainData.to_time || 'N/A',
+          runningDays: Array.isArray(trainData.running_days_list)
+            ? trainData.running_days_list.join(', ')
+            : trainData.running_days || 'Daily',
+          runningDaysList: Array.isArray(trainData.running_days_list)
+            ? trainData.running_days_list
+            : undefined,
+          class: train.class || 'SL',
+          seatsAvailable: train.seats_available || 0
+        }
+      };
+      
+      console.log(`[${requestId}] Formatted train:`, JSON.stringify(formattedTrain, null, 2));
+      return formattedTrain;
+    });
+
+    // Format flights and hotels to ensure price is a number and carry currency
+    const formattedFlights = (Array.isArray(flights) ? flights : []).map(flight => ({
+      ...flight,
+      price: Number(flight.price) || 0,
+      currency: flight.currency || 'INR',
+    }));
+
+    const formattedHotels = (Array.isArray(hotels) ? hotels : []).map(hotel => ({
+      ...hotel,
+      price: Number(hotel.price) || 0,
+      currency: hotel.currency || 'INR',
+    }));
+
+    const formattedTrains = Array.isArray(formattedTrainsRaw) ? formattedTrainsRaw : [];
+
+    const normalizeTransport = (item) => {
+      if (!item) return null;
+      const price = Number(item.price);
+      const currency = item.currency || item.details?.currency || 'INR';
+      const type = item.type || (item.details?.airline ? 'flight' : item.details?.trainName ? 'train' : 'transport');
+      return {
+        type,
+        provider: item.provider || item.details?.airline || item.details?.trainName || 'Unknown',
+        from: item.from || item.origin || null,
+        to: item.to || item.destination || null,
+        price: Number.isFinite(price) && price > 0 ? price : 0,
+        currency,
+        duration: item.duration || item.details?.duration || 'N/A',
+        departureTime: item.details?.departureTime || item.departureTime || null,
+        arrivalTime: item.details?.arrivalTime || item.arrivalTime || null,
+        details: item.details || {}
+      };
+    };
+
+    const normalizeHotel = (item) => {
+      if (!item) return null;
+      const price = Number(item.price);
+      const currency = item.currency || item.details?.currency || 'INR';
+      const details = item.details || {};
+      return {
+        type: 'hotel',
+        name: details.hotelName || item.name || 'Hotel',
+        price: Number.isFinite(price) && price > 0 ? price : 0,
+        currency,
+        location: item.location || details.address || destCode,
+        checkIn: item.checkIn || details.checkIn || hotelCheckIn || null,
+        checkOut: item.checkOut || details.checkOut || hotelCheckOut || null,
+        details: {
+          ...details,
+          hotelName: details.hotelName || item.name || 'Hotel'
+        }
+      };
+    };
+
+    const buildCheapestTripResponse = (trip) => {
+      if (!trip) return null;
+
+      let transportCandidate = null;
+      let hotelCandidate = null;
+
+      if (trip.transport || trip.hotel) {
+        transportCandidate = trip.transport || null;
+        hotelCandidate = trip.hotel || null;
+      } else if (trip.type === 'hotel') {
+        hotelCandidate = trip;
+      } else {
+        transportCandidate = trip;
+      }
+
+      const transport = normalizeTransport(transportCandidate);
+      const hotel = normalizeHotel(hotelCandidate);
+
+      if (!transport && !hotel) {
+        return null;
+      }
+
+      const computedTotal = (transport?.price || 0) + (hotel?.price || 0);
+      const rawTotal = Number(trip.totalCost);
+      const totalCost = Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : computedTotal;
+
+      return {
+        transport,
+        hotel,
+        totalCost,
+        currency: transport?.currency || hotel?.currency || 'INR'
+      };
+    };
+
+    // Find cheapest trip using provider data only
+    const cheapestTripRaw = findCheapestTrip(formattedFlights, formattedTrains, formattedHotels);
+    console.log(`[${requestId}] Cheapest trip result:`, JSON.stringify(cheapestTripRaw, null, 2));
+    const cheapestTrip = buildCheapestTripResponse(cheapestTripRaw);
+
+    if (cheapestTrip) {
+      console.log(`[${requestId}] Normalized cheapest trip:`, JSON.stringify(cheapestTrip, null, 2));
+    }
+
+    // Prepare the final response
+    const result = { 
+      flights: formattedFlights,
+      hotels: formattedHotels,
+      trains: formattedTrains,
+      cheapestTrip: cheapestTrip || null
+    };
+    
+    // Log the response structure
+    console.log(`[${requestId}] Sending response with data`);
+    console.log(`[${requestId}] Response structure:`, {
+      flights: { count: result.flights.length, hasPrices: result.flights.some(f => f.price > 0) },
+      hotels: { count: result.hotels.length, hasPrices: result.hotels.some(h => h.price > 0) },
+      trains: { count: result.trains.length, hasPrices: result.trains.some(t => t.price > 0) },
+      hasCheapestTrip: !!result.cheapestTrip
+    });
+    
+    // Send the response
+    res.json(result);
+  } catch (err) {
+    console.error("Error in /api/travel:", err);
+    console.error("Error stack:", err.stack);
+    res.status(500).json({ 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
 });

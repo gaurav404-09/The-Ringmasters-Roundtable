@@ -1,10 +1,8 @@
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 
+// Safe to call; server also loads .env with explicit path. We DO NOT cache env here.
 dotenv.config();
-
-const AMADEUS_KEY = process.env.AMADEUS_CLIENT_ID;
-const AMADEUS_SECRET = process.env.AMADEUS_CLIENT_SECRET;
 
 // Step 1: Get Access Token
 export async function getToken() {
@@ -13,6 +11,10 @@ export async function getToken() {
   console.log('AMADEUS_CLIENT_ID:', process.env.AMADEUS_CLIENT_ID ? '***' + process.env.AMADEUS_CLIENT_ID.slice(-4) : 'MISSING');
   console.log('AMADEUS_CLIENT_SECRET:', process.env.AMADEUS_CLIENT_SECRET ? '***' + process.env.AMADEUS_CLIENT_SECRET.slice(-4) : 'MISSING');
   
+  // Read credentials at call time to ensure .env from backend/server.js is in effect
+  const AMADEUS_KEY = process.env.AMADEUS_CLIENT_ID;
+  const AMADEUS_SECRET = process.env.AMADEUS_CLIENT_SECRET;
+
   if (!AMADEUS_KEY || !AMADEUS_SECRET) {
     throw new Error('Missing Amadeus API credentials. Please check your .env file');
   }
@@ -99,6 +101,8 @@ export async function getFlights(origin, destination, date) {
       }
     }));
     
+    return formattedFlights;
+    
     /* Uncomment this to enable real API calls
     const token = await getToken();
     console.log(`Fetching flights from ${origin} to ${destination} on ${date}`);
@@ -142,134 +146,51 @@ export async function getFlights(origin, destination, date) {
     */
   } catch (error) {
     console.error('Error in getFlights:', error);
-    console.log('Returning empty flight data');
     return [];
   }
 }
 
 
-// Step 3: Get Hotels
-export async function getHotels(cityCode, checkInDate, checkOutDate) {
-  try {
-    console.log(`Fetching real hotel data for ${cityCode} from ${checkInDate} to ${checkOutDate}`);
-    
-    // Get authentication token
-    const token = await getToken();
-    
-    // Use the hotels service to get hotel data
-    console.log('Calling getHotelsService with:', { cityCode, checkInDate, checkOutDate });
-    const hotels = await getHotelsService(token, cityCode, checkInDate, checkOutDate);
-    console.log('Received hotels data:', JSON.stringify(hotels, null, 2));
-    
-    // Transform the hotel data to match the expected format
-    const formattedHotels = hotels.map(hotel => ({
-      type: 'hotel',
-      provider: hotel.provider,
-      name: hotel.details?.hotelName || 'Hotel',
-      location: hotel.location || cityCode,
-      price: parseFloat(hotel.price) || 0,
-      rating: hotel.details?.rating || 0,
-      details: {
-        hotelName: hotel.details?.hotelName || 'Hotel',
-        rating: hotel.details?.rating || 0,
-        amenities: Array.isArray(hotel.details?.amenities) ? hotel.details.amenities : [],
-        checkIn: hotel.details?.checkIn || '14:00',
-        checkOut: hotel.details?.checkOut || '12:00',
-        address: hotel.details?.address || `${cityCode}, India`
-      }
-    }));
-    
-    // First, get city code if not already in IATA format
-    let cityIataCode = cityCode;
-    if (cityCode.length > 3) {
-      // This is a simplified version - in production, you'd want to use Amadeus' reference data API
-      cityIataCode = cityCode.slice(0, 3).toUpperCase();
-    }
-    
-    // Format dates to YYYY-MM-DD if needed
-    const formatDate = (dateStr) => new Date(dateStr).toISOString().split('T')[0];
-    const checkIn = formatDate(checkInDate);
-    const checkOut = formatDate(checkOutDate);
-    
-    console.log(`Calling Amadeus API for hotels in ${cityIataCode} from ${checkIn} to ${checkOut}`);
-    
-    // First, search for hotels
-    const searchResponse = await fetch(
-      `https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-city?cityCode=${cityIataCode}&radius=50&radiusUnit=KM&hotelSource=ALL`,
-      { 
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        } 
-      }
-    );
-    
-    if (!searchResponse.ok) {
-      const errorText = await searchResponse.text();
-      console.error('Amadeus hotel search error:', errorText);
-      throw new Error(`Failed to search hotels: ${searchResponse.status} ${searchResponse.statusText}`);
-    }
-    
-    const searchData = await searchResponse.json();
-    console.log('Amadeus hotel search response:', JSON.stringify(searchData, null, 2));
-    
-    if (!searchData.data || searchData.data.length === 0) {
-      console.warn('No hotels found in the specified location');
-      return [];
-    }
-    
-    // For demo, take first 5 hotels
-    const hotelsToCheck = searchData.data.slice(0, 5);
-    const hotelsWithPrices = [];
-    
-    // Get pricing for each hotel (simplified - in production, you'd want to batch these)
-    for (const hotel of hotelsToCheck) {
-      try {
-        const priceResponse = await fetch(
-          `https://test.api.amadeus.com/v3/shopping/hotel-offers?hotelIds=${hotel.hotelId}&adults=1&checkInDate=${checkIn}&checkOutDate=${checkOut}`,
-          { 
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            } 
-          }
-        );
-        
-        if (priceResponse.ok) {
-          const priceData = await priceResponse.json();
-          if (priceData.data && priceData.data.length > 0) {
-            const offer = priceData.data[0].offers[0];
-            hotelsWithPrices.push({
-              type: 'hotel',
-              provider: 'Amadeus',
-              location: cityIataCode,
-              price: parseFloat(offer.price.total) || 0,
-              details: {
-                hotelName: hotel.name || 'Hotel',
-                rating: Math.min(5, Math.max(3, Math.random() * 2 + 3)).toFixed(1), // Random rating between 3-5
-                address: `${hotel.address?.lines?.[0] || ''}, ${cityCode}`.trim(),
-                checkIn: '14:00',
-                checkOut: '12:00',
-                amenities: ['Free WiFi', 'Restaurant', 'Pool'].slice(0, Math.floor(Math.random() * 3) + 1)
-              }
-            });
-          }
-        }
-      } catch (error) {
-        console.error(`Error getting price for hotel ${hotel.hotelId}:`, error);
-      }
+  // Step 3: Get Hotels
+  export async function getHotels(cityCode, checkInDate, checkOutDate, adults = 1, locationHint = '') {
+    try {
+      console.log(`Fetching real hotel data for ${cityCode} from ${checkInDate} to ${checkOutDate} (adults=${adults}, hint='${locationHint}')`);
       
-      // Add small delay between requests to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    
-    return hotelsWithPrices;
+      // Get authentication token
+      const token = await getToken();
+      
+      // Use the hotels service to get hotel data
+      console.log('Calling getHotelsService with:', { cityCode, locationHint, checkInDate, checkOutDate, adults });
+      const hotels = await getHotelsService(token, cityCode, checkInDate, checkOutDate, adults, locationHint);
+      console.log('Received hotels data:', JSON.stringify(hotels, null, 2));
+      
+      // Transform the hotel data to match the expected format
+      const formattedHotels = hotels.map(hotel => ({
+        type: 'hotel',
+        provider: hotel.provider,
+        name: hotel.details?.hotelName || hotel.name || 'Hotel',
+        location: hotel.location || cityCode,
+        price: parseFloat(hotel.price) || 0,
+        currency: hotel.currency || 'INR',
+        rating: hotel.details?.rating || 0,
+        details: {
+          hotelName: hotel.details?.hotelName || 'Hotel',
+          rating: hotel.details?.rating || 0,
+          amenities: Array.isArray(hotel.details?.amenities) ? hotel.details.amenities : [],
+          checkIn: hotel.details?.checkIn || '14:00',
+          checkOut: hotel.details?.checkOut || '12:00',
+          address: hotel.details?.address || `${cityCode}, India`
+        }
+      }));
+      
+      // Short-circuit here to avoid additional network calls that can cause timeouts
+      return formattedHotels;
     
     /* Uncomment this to enable real API calls
     const token = await getToken();
     console.log(`Fetching hotels in ${cityCode} from ${checkInDate} to ${checkOutDate}`);
     
-    // Get hotel IDs
+{{ ... }}
     const hotelRes = await fetch(
       `https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-city?cityCode=${cityCode}`,
       { 
@@ -337,7 +258,7 @@ export async function getHotels(cityCode, checkInDate, checkOutDate) {
     */
   } catch (error) {
     console.error('Error fetching hotels:', error);
-    // Return mock data in case of error
-    return MOCK_HOTELS;
+    // Return empty array in case of error to avoid undefined references
+    return [];
   }
 }

@@ -3,6 +3,29 @@ import React, { useState } from "react";
 import api from "../utils/api";
 import toast, { Toaster } from "react-hot-toast";
 
+const currencySymbol = (code = "INR") => {
+  if (!code) return "₹";
+  const upper = code.toUpperCase();
+  switch (upper) {
+    case "USD":
+      return "$";
+    case "EUR":
+      return "€";
+    case "GBP":
+      return "£";
+    case "INR":
+    default:
+      return "₹";
+  }
+};
+
+const formatCurrency = (amount, code = "INR") => {
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+    return "N/A";
+  }
+  return `${currencySymbol(code)}${amount.toLocaleString()}`;
+};
+
 const Budget = () => {
   const [origin, setOrigin] = useState("");
   const [originIata, setOriginIata] = useState("");
@@ -69,80 +92,10 @@ const Budget = () => {
         
         // Transform the data to match the expected format
         const formattedData = {
-          // Flights data - ensure we always have an array
-          flights: Array.isArray(response.data.flights) ? response.data.flights.map(flight => ({
-            ...flight,
-            from: flight.origin || flight.from || origin,
-            to: flight.destination || flight.to || destination,
-            price: typeof flight.price === 'number' ? flight.price : 0,
-            duration: flight.duration || 'PT0H', // Default to 0 hours if not provided
-            details: {
-              ...flight.details,
-              airline: flight.details?.airline || flight.airline || flight.provider || 'Airline',
-              flightNumber: flight.details?.flightNumber || flight.flightNumber || 'N/A',
-              departureTime: flight.details?.departureTime || flight.departure || 'N/A',
-              arrivalTime: flight.details?.arrivalTime || flight.arrival || 'N/A',
-              class: flight.details?.class || flight.class || 'ECONOMY'
-            }
-          })) : [],
-          
-          // Hotels data - ensure we always have an array
-          hotels: Array.isArray(response.data.hotels) ? response.data.hotels.map(hotel => ({
-            ...hotel,
-            location: hotel.location || destination,
-            price: typeof hotel.price === 'number' ? hotel.price : 0,
-            details: {
-              ...hotel.details,
-              hotelName: hotel.details?.hotelName || hotel.hotelName || hotel.name || 'Hotel',
-              rating: hotel.details?.rating || hotel.rating || 0,
-              amenities: Array.isArray(hotel.details?.amenities) ? hotel.details.amenities : 
-                        Array.isArray(hotel.amenities) ? hotel.amenities : []
-            }
-          })) : [],
-          
-          // Trains data - ensure we always have an array
-          trains: Array.isArray(response.data.trains) ? response.data.trains.map(train => {
-            const details = train.details || {};
-            return {
-              ...train,
-              from: train.origin || train.from || origin,
-              to: train.destination || train.to || destination,
-              fromCode: train.fromCode || (origin ? origin.substring(0, 3).toUpperCase() : 'N/A'),
-              toCode: train.toCode || (destination ? destination.substring(0, 3).toUpperCase() : 'N/A'),
-              price: typeof train.price === 'number' ? train.price : 0,
-              duration: train.duration || 'PT0H',
-              details: {
-                ...details,
-                trainName: details.trainName || train.trainName || train.name || 'Train',
-                trainNumber: details.trainNumber || train.trainNumber || train.number || 'N/A',
-                departureTime: details.departureTime || train.departure || 'N/A',
-                arrivalTime: details.arrivalTime || train.arrival || 'N/A',
-                class: details.class || train.class || 'SL',
-                seatsAvailable: typeof details.seatsAvailable === 'number' ? details.seatsAvailable :
-                              typeof train.availableSeats === 'number' ? train.availableSeats : 0,
-                runningDays: details.runningDays || 'Daily',
-                days: typeof details.days === 'number' ? details.days : 0
-              }
-            };
-          }) : [],
-          
-          cheapestTrip: response.data.cheapestTrip ? {
-            transport: {
-              type: response.data.cheapestTrip.transportType || 'flight',
-              price: response.data.cheapestTrip.transportPrice || 0,
-              details: {
-                airline: response.data.cheapestTrip.transportName || 'Transport',
-                departure: response.data.cheapestTrip.departureTime,
-                arrival: response.data.cheapestTrip.arrivalTime
-              }
-            },
-            hotel: {
-              name: response.data.cheapestTrip.hotelName || 'Hotel',
-              price: response.data.cheapestTrip.hotelPrice || 0,
-              location: destination
-            },
-            totalCost: response.data.cheapestTrip.totalCost || 0
-          } : null
+          flights: Array.isArray(response.data.flights) ? response.data.flights : [],
+          hotels: Array.isArray(response.data.hotels) ? response.data.hotels : [],
+          trains: Array.isArray(response.data.trains) ? response.data.trains : [],
+          cheapestTrip: response.data.cheapestTrip || null
         };
         
         setResult(formattedData);
@@ -270,15 +223,16 @@ const Budget = () => {
                   <div key={i} className="bg-white p-4 rounded shadow hover:shadow-lg transition">
                     <div className="flex justify-between items-start">
                       <h3 className="font-semibold text-lg">
-                        {flight.details?.airline || 'Flight'}
+                        {flight.details?.airline || flight.provider || 'Flight'}
                       </h3>
-                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                        {flight.details?.class || 'ECONOMY'}
-                      </span>
+                      {flight.details?.class && (
+                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                          {flight.details.class}
+                        </span>
+                      )}
                     </div>
                     <p className="text-gray-600 text-sm mt-1">
-                      {flight.from} ({flight.fromCode || flight.from?.substring(0, 3).toUpperCase()}) → 
-                      {flight.to} ({flight.toCode || flight.to?.substring(0, 3).toUpperCase()})
+                      {flight.from} → {flight.to}
                     </p>
                     <div className="mt-3 space-y-1">
                       <div className="flex justify-between">
@@ -292,23 +246,15 @@ const Budget = () => {
                       <div className="flex justify-between">
                         <span className="text-gray-500">Duration:</span>
                         <span className="font-medium">
-                          {flight.duration ? 
-                            flight.duration
-                              .replace("PT", "")
-                              .replace("H", "h ")
-                              .replace("M", "m")
-                              .replace(/\s*[hm]\s*$/, "") // Remove trailing 'h' or 'm' if no minutes/hours
-                            : 'N/A'}
+                          {flight.duration || 'N/A'}
                         </span>
                       </div>
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100">
-                      <div className="flex justify-between items-center">
+                      <div className="flex justify_between items-center">
                         <div>
                           <span className="text-sm text-gray-500">Price:</span>
-                          <span className="ml-2 font-bold text-lg">
-                            ₹{typeof flight.price === 'number' ? flight.price.toLocaleString() : 'N/A'}
-                          </span>
+                          <span className="ml-2 font-bold text-lg">{formatCurrency(flight.price, flight.currency)}</span>
                         </div>
                         {flight.details?.flightNumber && (
                           <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
@@ -336,7 +282,7 @@ const Budget = () => {
                   <div key={i} className="bg-white p-4 rounded shadow hover:shadow-lg transition">
                     <div className="flex justify-between items-start">
                       <h3 className="font-semibold text-lg">
-                        {hotel.details?.hotelName || 'Hotel'}
+                        {hotel.details?.hotelName || hotel.name || 'Hotel'}
                       </h3>
                       {hotel.details?.rating && (
                         <span className="flex items-center bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">
@@ -369,9 +315,7 @@ const Budget = () => {
                       <div className="flex justify-between items-center">
                         <div>
                           <span className="text-sm text-gray-500">Price per night:</span>
-                          <span className="ml-2 font-bold text-lg">
-                            ₹{typeof hotel.price === 'number' ? hotel.price.toLocaleString() : 'N/A'}
-                          </span>
+                          <span className="ml-2 font-bold text-lg">{formatCurrency(hotel.price, hotel.currency)}</span>
                         </div>
                         <button className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1.5 rounded transition">
                           View Deal
@@ -414,8 +358,7 @@ const Budget = () => {
                       </div>
                       
                       <p className="text-gray-600 text-sm mt-1">
-                        {train.from} ({train.fromCode || train.from?.substring(0, 3).toUpperCase()}) → 
-                        {train.to} ({train.toCode || train.to?.substring(0, 3).toUpperCase()})
+                        {train.from} ({train.fromCode || ''}) → {train.to} ({train.toCode || ''})
                       </p>
                       
                       <div className="mt-3 space-y-1">
@@ -432,15 +375,7 @@ const Budget = () => {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Duration:</span>
-                          <span className="font-medium">
-                            {train.duration ? 
-                              train.duration
-                                .replace("PT", "")
-                                .replace("H", "h ")
-                                .replace("M", "m")
-                                .replace(/\s*[hm]\s*$/, "")
-                              : 'N/A'}
-                          </span>
+                          <span className="font-medium">{train.duration || 'N/A'}</span>
                         </div>
                       </div>
                       
@@ -448,9 +383,7 @@ const Budget = () => {
                         <div className="flex justify-between items-center">
                           <div>
                             <span className="text-sm text-gray-500">Price:</span>
-                            <span className="ml-2 font-bold text-lg">
-                              ₹{typeof train.price === 'number' ? train.price.toLocaleString() : 'N/A'}
-                            </span>
+                            <span className="ml-2 font-bold text-lg">{formatCurrency(train.price, train.currency)}</span>
                           </div>
                           <span className={`text-xs font-medium px-2 py-1 rounded ${
                             isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -525,25 +458,20 @@ const Budget = () => {
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className="text-gray-500">Name:</div>
                       <div className="font-medium">
-                        {result.cheapestTrip.hotel.details?.hotelName || 
-                         result.cheapestTrip.hotel.name || 'Hotel'}
+                        {result.cheapestTrip.hotel.name}
                       </div>
                       
                       <div className="text-gray-500">Location:</div>
                       <div>{result.cheapestTrip.hotel.location || destination || 'N/A'}</div>
                       
                       <div className="text-gray-500">Check-in:</div>
-                      <div>{result.cheapestTrip.hotel.checkIn || 'N/A'}</div>
+                      <div>{result.cheapestTrip.hotel.checkIn || checkIn || 'N/A'}</div>
                       
                       <div className="text-gray-500">Check-out:</div>
-                      <div>{result.cheapestTrip.hotel.checkOut || 'N/A'}</div>
+                      <div>{result.cheapestTrip.hotel.checkOut || checkOut || 'N/A'}</div>
                       
                       <div className="text-gray-500">Price per night:</div>
-                      <div className="font-bold">
-                        ₹{typeof result.cheapestTrip.hotel.price === 'number' 
-                          ? result.cheapestTrip.hotel.price.toLocaleString() 
-                          : 'N/A'}
-                      </div>
+                      <div className="font-bold">{formatCurrency(result.cheapestTrip.hotel.price, result.cheapestTrip.hotel.currency)}</div>
                     </div>
                   </div>
                 )}
@@ -551,12 +479,7 @@ const Budget = () => {
                 <div className="bg-blue-50 p-3 rounded shadow border border-blue-100">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Total Estimated Cost:</span>
-                    <span className="text-xl font-bold text-blue-700">
-                      {result.cheapestTrip.transport?.type === 'flight' ? '$' : '₹'}
-                      {typeof result.cheapestTrip.totalPrice === 'number' 
-                        ? result.cheapestTrip.totalPrice.toLocaleString() 
-                        : 'N/A'}
-                    </span>
+                    <span className="text-xl font-bold text-blue-700">{formatCurrency(result.cheapestTrip.totalCost, result.cheapestTrip.currency)}</span>
                   </div>
                 </div>
               </div>
