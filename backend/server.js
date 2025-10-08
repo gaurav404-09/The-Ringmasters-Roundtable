@@ -33,13 +33,11 @@ console.log("Amadeus Key:", process.env.AMADEUS_CLIENT_ID);
 const io = new Server(server, {
   path: "/socket.io/",
   cors: {
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "OPTIONS"],
     credentials: true
   },
-  // Force long polling first, then upgrade to WebSocket
   transports: ['polling', 'websocket'],
-  // Enable compatibility with older Socket.IO clients
   allowEIO3: true
 });
 

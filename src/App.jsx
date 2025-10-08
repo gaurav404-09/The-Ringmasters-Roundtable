@@ -1,8 +1,7 @@
-
 import "leaflet/dist/leaflet.css";
 import { Routes, Route, useLocation } from "react-router-dom";
-import { AnimatePresence } from 'framer-motion';
-import { Toaster } from 'react-hot-toast';
+import { AnimatePresence } from "framer-motion";
+import { Toaster } from "react-hot-toast";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
@@ -20,7 +19,7 @@ import Dashboard from './pages/Dashboard';
 
 function App() {
   const location = useLocation();
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Navbar />
@@ -31,7 +30,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/weather" element={<Weather />} />
             <Route path="/routes" element={<RoutesPage />} />
-            <Route path="/budget" element={<Budget />} />
+            <Route path="/budget" element={<Planner />} />
             <Route path="/events" element={<Events />} />
             <Route path="/compare" element={<Compare />} />
             <Route path="/itinerary" element={<Itinerary />} />

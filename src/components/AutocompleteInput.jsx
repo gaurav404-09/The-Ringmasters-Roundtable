@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import cities from '../data/cities';
+import { getIataCode } from '../utils/cityCodes';
 
-const AutocompleteInput = ({ value, onChange, placeholder, className = '' }) => {
+const AutocompleteInput = ({ value, onChange, onIataCode, placeholder, className = '' }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const wrapperRef = useRef(null);
@@ -66,6 +67,8 @@ const AutocompleteInput = ({ value, onChange, placeholder, className = '' }) => 
 
   const handleSuggestionClick = (suggestion) => {
     onChange(suggestion);
+    const iataCode = getIataCode(suggestion);
+    if (onIataCode) onIataCode(iataCode);
     setShowSuggestions(false);
   };
 

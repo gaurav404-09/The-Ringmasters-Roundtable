@@ -33,22 +33,21 @@ A comprehensive travel planning application that helps you organize and manage y
 - 📦 MongoDB (for data storage)
 - 🔄 RESTful API
 
-## 🚀 Quick Start (Single Command Setup)
+## 🚀 Quick Start (Windows PowerShell)
 
 Run both frontend and backend with a single command:
 
-```bash
+```powershell
 # Install dependencies (first time only)
 npm install
-cd backend && npm install && cd ..
 
-# Start both frontend and backend
-npm run start:full
+# Start both frontend and backend (Windows)
+.\start-all.ps1
 ```
 
 This will start:
 - Frontend at [http://localhost:5173](http://localhost:5173)
-- Backend API at [http://localhost:5000](http://localhost:5000)
+- Backend API at [http://localhost:3000](http://localhost:3000)
 
 ## 🚀 Getting Started
 
@@ -62,8 +61,8 @@ This will start:
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/yourusername/ringmasters-roundtable.git
-   cd ringmasters-roundtable
+   git clone https://github.com/Webster-2025/The-Ringmasters-Roundtable.git
+   cd The-Ringmasters-Roundtable
    ```
 
 2. Install dependencies
@@ -75,21 +74,20 @@ This will start:
 
 ### Running the Application
 
-1. Start the frontend development server:
-   ```bash
-   npm run dev
-   ```
+#### Option 1: Single Command (Windows PowerShell) - RECOMMENDED
 
-2. In a new terminal, start all backend services:
-   ```bash
-   ./start-all.sh
-   ```
+Run both frontend and backend with a single PowerShell command:
 
-3. The application will be available at:
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3001
+```powershell
+# Run this in PowerShell from the project root
+.\start-all.ps1
+```
 
-> **Note:** Make sure to run both the frontend and backend services for full functionality.
+This will start:
+- Frontend at [http://localhost:5173](http://localhost:5173) (in one window)
+- Backend API at [http://localhost:3000](http://localhost:3000) (in another window)
+
+> **Note:** Make sure both servers are running for full functionality. The frontend communicates with the backend for data and real-time features.
 
 ## 🛠️ Detailed Setup
 
@@ -97,7 +95,6 @@ This will start:
 
 - Node.js (v16 or higher)
 - npm or yarn
-- MongoDB (for local development)
 
 ### Frontend Setup
 
@@ -117,8 +114,7 @@ This will start:
 3. **Set up environment variables**
    Create a `.env` file in the root directory with the following variables:
    ```
-   VITE_API_URL=http://localhost:5000
-   VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+   VITE_API_BASE_URL=http://localhost:3000
    ```
 
 4. **Start the development server**
@@ -143,25 +139,19 @@ This will start:
 3. **Set up environment variables**
    Create a `.env` file in the backend directory:
    ```
-   PORT=5000
-   MONGODB_URI=your_mongodb_connection_string
-   JWT_SECRET=your_jwt_secret
+   PORT=3000
+   ENABLE_RABBITMQ=true
    ```
 
 4. **Start the backend server**
    ```bash
-   npm run dev
+   node server.js
    ```
 
 5. **Access the application**
    - Frontend: [http://localhost:5173](http://localhost:5173)
-   - Backend API: [http://localhost:5000](http://localhost:5000)
-
-## 🏗️ Project Structure
-
-```
+   - Backend API: [http://localhost:3000](http://localhost:3000)
 The-Ringmasters-Roundtable/
-├── src/                    # Frontend source code
 │   ├── components/         # Reusable UI components
 │   ├── pages/              # Page components
 │   │   ├── Home.jsx
