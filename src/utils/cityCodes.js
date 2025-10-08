@@ -159,7 +159,14 @@ export const cityToIata = {
 // Function to get IATA code for a city name
 export const getIataCode = (cityName) => {
   if (!cityName) return '';
-  const cityKey = cityName.toLowerCase().split(',')[0].trim();
+  const trimmed = cityName.trim();
+
+  // If the user already entered a 3-letter code, accept it directly
+  if (/^[A-Za-z]{3}$/.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
+  const cityKey = trimmed.toLowerCase().split(',')[0].trim();
   return cityToIata[cityKey] || '';
 };
 

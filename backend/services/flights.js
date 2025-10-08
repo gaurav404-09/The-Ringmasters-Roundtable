@@ -1,4 +1,15 @@
 // services/flights.js
+// Helper to enforce request timeouts with AbortController
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+};
+
 export async function getFlights(
   token,
   origin,
@@ -16,16 +27,20 @@ export async function getFlights(
   }
 
   try {
-    const url = `https://test.api.amadeus.com/v2/shopping/flight-offers?originLocationCode=${origin}&destinationLocationCode=${destination}&departureDate=${departureDate}&adults=${adults}&max=${max}&currencyCode=USD`;
+    // Request INR to align with frontend display
+    const url = `https://test.api.amadeus.com/v2/shopping/flight-offers?originLocationCode=${origin}&destinationLocationCode=${destination}&departureDate=${departureDate}&adults=${adults}&max=${max}&currencyCode=INR`;
     console.log('Making API request to:', url);
 
-    const response = await fetch(url, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    const response = await fetchWithTimeout(
+      url,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       },
-      timeout: 10000 // 10 second timeout
-    });
+      12000 // 12s timeout for flight search
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -50,6 +65,13 @@ export async function getFlights(
       const itinerary = offer.itineraries?.[0];
       const segment = itinerary?.segments?.[0];
       const price = parseFloat(offer.price?.total) || 0;
+      const currency = offer.price?.currency || 'INR';
+
+      // Format duration like "2h 30m"
+      const rawDuration = itinerary?.duration || '';
+      const formattedDuration = typeof rawDuration === 'string' && rawDuration.startsWith('PT')
+        ? rawDuration.replace('PT', '').replace('H', 'h ').replace('M', 'm')
+        : (rawDuration || 'N/A');
       
       return {
         type: 'flight',
@@ -57,7 +79,8 @@ export async function getFlights(
         from: origin,
         to: destination,
         price: price,
-        duration: itinerary?.duration?.replace('PT', '').replace('H', 'h ') + 'm' || 'N/A',
+        currency,
+        duration: formattedDuration,
         details: {
           airline: segment?.carrierCode || 'N/A',
           flightNumber: `${segment?.carrierCode || ''} ${segment?.number || ''}`.trim(),
