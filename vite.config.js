@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       headers: {
+        "Content-Security-Policy": [
           "default-src 'self' http://localhost:5173 http://127.0.0.1:5173 http://localhost:3000;",
           "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' 'inline-speculation-rules' data: blob: http://localhost:5173 http://127.0.0.1:5173 https://apis.google.com https://www.gstatic.com https://identitytoolkit.googleapis.com;",
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;",
@@ -23,6 +24,7 @@ export default defineConfig(({ mode }) => {
           "media-src 'self' https://*.tile.openstreetmap.org;",
           "object-src 'none';"
         ].join(' ')
+      }
     }
     // If you're having issues with environment variables in production
     // you might need to add this:

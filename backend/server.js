@@ -18,6 +18,7 @@ import directionsRoutes from './routes/directionsRoutes.js';
 import itineraryRoutes from './routes/itineraryRoutes.js';
 import compareRoutes from './routes/compareRoutes.js';
 import nearbyRoutes from './routes/nearbyRoutes.js';
+import communityRoutes from './routes/communityRoutes.js';
 import requestLogger from './middleware/requestLogger.js';
 import { getFlights, getHotels } from './services/amadeus.js';
 import { getTrains } from './services/trains.js';
@@ -66,7 +67,7 @@ const PORT = process.env.PORT || 3000; // Running backend on port 3000
 // Configure CORS for both HTTP and WebSocket
 const corsOptions = {
   origin: allowedOrigins,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type", 
     "Authorization", 
@@ -98,21 +99,57 @@ app.use('/api', directionsRoutes);
 app.use('/api', itineraryRoutes);
 app.use('/api', compareRoutes);
 app.use('/api', nearbyRoutes);
+app.use('/api/community', communityRoutes);
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
 }
 
 // --- RABBITMQ & WEBSOCKET LOGIC (MCP Integration) ---
 
-const RABBITMQ_URL = 'amqp://localhost';
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
+let amqpConnection = null;
 let amqpChannel = null;
+let rabbitReconnectTimer = null;
 const tripSubscribers = new Map(); // Maps trip_id to a client's socket.id
 
+const scheduleRabbitReconnect = () => {
+  if (rabbitReconnectTimer) return;
+  rabbitReconnectTimer = setTimeout(() => {
+    rabbitReconnectTimer = null;
+    connectRabbitMQ().catch((error) => {
+      console.error(' [Server] RabbitMQ reconnection attempt failed:', error.message);
+    });
+  }, 5000);
+};
+
 async function connectRabbitMQ() {
+  if (!ENABLE_RABBITMQ) {
+    console.warn(' [Server] RabbitMQ connection attempted while disabled.');
+    return null;
+  }
+
+  if (amqpChannel) {
+    return amqpChannel;
+  }
+
     try {
-        console.log(' [Server] Attempting to connect to RabbitMQ...');
+        console.log(` [Server] Attempting to connect to RabbitMQ (${RABBITMQ_URL})...`);
         const connection = await amqp.connect(RABBITMQ_URL);
+        amqpConnection = connection;
+
+        connection.on('close', () => {
+            console.warn(' [Server] RabbitMQ connection closed. Scheduling reconnect...');
+            amqpConnection = null;
+            amqpChannel = null;
+            scheduleRabbitReconnect();
+        });
+
+        connection.on('error', (error) => {
+            console.error(' [Server] RabbitMQ connection error:', error.message);
+        });
+
         const channel = await connection.createChannel();
+        amqpChannel = channel;
         console.log(' [Server] Connected to RabbitMQ');
 
         // Ensure all necessary queues exist
@@ -147,15 +184,27 @@ async function connectRabbitMQ() {
         });
         
         amqpChannel = channel;
+        return channel;
     } catch (error) {
         console.error(' [Server] RabbitMQ connection error. Retrying in 5 seconds...', error.message);
-        setTimeout(connectRabbitMQ, 5000);
+        amqpConnection = null;
+        amqpChannel = null;
+        scheduleRabbitReconnect();
+        return null;
     }
 }
 
+const ensureRabbitMQ = async () => {
+  if (!ENABLE_RABBITMQ) return null;
+  if (amqpChannel) return amqpChannel;
+  return connectRabbitMQ();
+};
+
 // Only attempt to connect to RabbitMQ if enabled
 if (ENABLE_RABBITMQ) {
-    connectRabbitMQ().catch(console.error);
+    ensureRabbitMQ().catch((error) => {
+        console.error(' [Server] Failed to initialize RabbitMQ:', error.message);
+    });
 } else {
     console.log(' [Server] RabbitMQ is disabled (ENABLE_RABBITMQ is not set to true)');
 }
@@ -164,8 +213,16 @@ io.on('connection', (socket) => {
     console.log(` [Server] Client connected: ${socket.id}`);
 
     // This is the new endpoint for planning a trip with the agent system
-    socket.on('plan_trip', (data) => {
-        if (!ENABLE_RABBITMQ || !amqpChannel) {
+    socket.on('plan_trip', async (data) => {
+        if (!ENABLE_RABBITMQ) {
+            return socket.emit('status_update', {
+                error: 'RabbitMQ is not enabled',
+                message: 'This feature requires RabbitMQ to be enabled and running.'
+            });
+        }
+
+        const channel = await ensureRabbitMQ();
+        if (!channel) {
             return socket.emit('status_update', { 
                 error: 'RabbitMQ is not enabled or not connected',
                 message: 'This feature requires RabbitMQ to be enabled and running.' 
@@ -187,11 +244,23 @@ io.on('connection', (socket) => {
             },
         };
 
-        // Send the job to the Python orchestrator
-        amqpChannel.sendToQueue('trip_requests_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
-        
-        console.log(` [Server] Sent job for trip ${trip_id} to orchestrator.`);
-        socket.emit('status_update', { message: `Trip request sent for ${data.start_city} to ${data.end_city}.` });
+        try {
+            // Send the job to the Python orchestrator
+            channel.sendToQueue(
+              'trip_requests_queue',
+              Buffer.from(JSON.stringify(message)),
+              { persistent: true }
+            );
+
+            console.log(` [Server] Sent job for trip ${trip_id} to orchestrator.`);
+            socket.emit('status_update', { message: `Trip request sent for ${data.start_city} to ${data.end_city}.` });
+        } catch (error) {
+            console.error(' [Server] Failed to enqueue trip request:', error.message);
+            socket.emit('status_update', {
+              error: 'Failed to queue trip request',
+              message: 'RabbitMQ accepted the connection but queueing failed. Check server logs.'
+            });
+        }
     });
 
     socket.on('disconnect', () => {

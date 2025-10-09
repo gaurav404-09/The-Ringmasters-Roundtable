@@ -15,6 +15,7 @@ import TripSummary from "./pages/TripSummary.jsx";
 import AuthPage from './pages/AuthPage';
 import PlanTrip from './pages/PlanTrip';
 import Dashboard from './pages/Dashboard';
+import Community from './pages/Community';
 
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
             <Route path="/compare" element={<Compare />} />
             <Route path="/itinerary" element={<Itinerary />} />
             <Route path="/trip-summary" element={<TripSummary />} />
+            <Route path="/community" element={<Community />} />
             <Route
               path="/planner"
               element={

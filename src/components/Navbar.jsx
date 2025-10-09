@@ -22,6 +22,7 @@ const BASE_NAV_ITEMS = [
   { name: 'Compare', path: '/compare', icon: FaBalanceScale },
   { name: 'Dashboard', path: '/dashboard', icon: FaClipboardList },
   { name: 'Itinerary', path: '/itinerary', icon: FaClipboardList },
+  { name: 'Community', path: '/community', icon: FaUserCircle },
 ];
 
 const Navbar = () => {

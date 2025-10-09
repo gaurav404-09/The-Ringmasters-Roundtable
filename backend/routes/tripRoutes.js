@@ -6,15 +6,33 @@ import {
   confirmTripItemForUser,
   confirmEntireTripForUser,
 } from '../services/tripStore.js';
+import verifyFirebaseToken from '../middleware/verifyFirebaseToken.js';
 
 const router = express.Router();
 
+router.use(verifyFirebaseToken);
+
+const resolveUid = (req, res) => {
+  const authedUid = req.user?.uid;
+  if (!authedUid) {
+    res.status(401).json({ success: false, error: 'Authentication required' });
+    return null;
+  }
+
+  const { uid: uidParam } = req.params;
+  if (uidParam && uidParam !== authedUid) {
+    res.status(403).json({ success: false, error: 'Forbidden: uid mismatch' });
+    return null;
+  }
+
+  return authedUid;
+};
+
 router.get('/:uid/trips', async (req, res) => {
-  const { uid } = req.params;
   try {
-    if (!uid) {
-      return res.status(400).json({ error: 'User id is required' });
-    }
+    const uid = resolveUid(req, res);
+    if (!uid) return;
+
     const trips = await getTripsForUser(uid);
     res.json({ success: true, trips });
   } catch (error) {
@@ -24,12 +42,14 @@ router.get('/:uid/trips', async (req, res) => {
 });
 
 router.post('/:uid/trips/:tripId/confirm-all', async (req, res) => {
-  const { uid, tripId } = req.params;
+  const { tripId } = req.params;
   const { overrides } = req.body || {};
 
   try {
-    if (!uid || !tripId) {
-      return res.status(400).json({ error: 'User id and trip id are required' });
+    const uid = resolveUid(req, res);
+    if (!uid) return;
+    if (!tripId) {
+      return res.status(400).json({ error: 'Trip id is required' });
     }
 
     const updatedTrip = await confirmEntireTripForUser(uid, tripId, overrides || {});
@@ -42,13 +62,11 @@ router.post('/:uid/trips/:tripId/confirm-all', async (req, res) => {
 });
 
 router.post('/:uid/trips', async (req, res) => {
-  const { uid } = req.params;
   const { trip } = req.body || {};
 
   try {
-    if (!uid) {
-      return res.status(400).json({ error: 'User id is required' });
-    }
+    const uid = resolveUid(req, res);
+    if (!uid) return;
     if (!trip || typeof trip !== 'object') {
       return res.status(400).json({ error: 'Trip payload is required' });
     }
@@ -62,10 +80,12 @@ router.post('/:uid/trips', async (req, res) => {
 });
 
 router.delete('/:uid/trips/:tripId', async (req, res) => {
-  const { uid, tripId } = req.params;
+  const { tripId } = req.params;
   try {
-    if (!uid || !tripId) {
-      return res.status(400).json({ error: 'User id and trip id are required' });
+    const uid = resolveUid(req, res);
+    if (!uid) return;
+    if (!tripId) {
+      return res.status(400).json({ error: 'Trip id is required' });
     }
 
     const remaining = await deleteTripForUser(uid, tripId);
@@ -77,12 +97,14 @@ router.delete('/:uid/trips/:tripId', async (req, res) => {
 });
 
 router.post('/:uid/trips/:tripId/confirm', async (req, res) => {
-  const { uid, tripId } = req.params;
+  const { tripId } = req.params;
   const { itemId, bookingDetails } = req.body || {};
 
   try {
-    if (!uid || !tripId || !itemId) {
-      return res.status(400).json({ error: 'User id, trip id, and item id are required' });
+    const uid = resolveUid(req, res);
+    if (!uid) return;
+    if (!tripId || !itemId) {
+      return res.status(400).json({ error: 'Trip id and item id are required' });
     }
 
     const updatedTrip = await confirmTripItemForUser(uid, tripId, itemId, bookingDetails || {});
