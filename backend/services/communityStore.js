@@ -59,7 +59,7 @@ const buildPostResponse = (doc, viewerId = null) => {
     content: data.content,
     source: data.source || null,
     destination: data.destination || null,
-    tags: data.tags || [],
+    tags: normalizeTags(data.tags),
     media: data.media || [],
     rating: typeof data.rating === 'number' ? data.rating : null,
     authorId: data.authorId,
@@ -154,28 +154,12 @@ export const listCommunityPosts = async ({ destination, tag, search, limit = 10,
   const firestore = ensureFirestore();
   let query = firestore.collection(POSTS_COLLECTION).orderBy('createdAt', 'desc');
 
-  if (destination) {
-    query = query.where('destination', '==', destination.trim());
-  }
+  const normalizedDestination = typeof destination === 'string' ? destination.trim() : '';
+  const normalizedTag = typeof tag === 'string' ? tag.trim().toLowerCase() : '';
+  const normalizedSearch = typeof search === 'string' ? search.trim().toLowerCase() : '';
 
-  if (tag) {
-    query = query.where('tags', 'array-contains', tag.toLowerCase().trim());
-  }
-
-  if (search) {
-    // Simple search: filter client-side after fetch because Firestore does not support OR contains
-    const snapshot = await query.limit(limit).get();
-    const posts = snapshot.docs
-      .map((doc) => buildPostResponse(doc, viewerId))
-      .filter(
-        (post) =>
-          post &&
-          post.publishToCommunity !== false &&
-          ((post.title && post.title.toLowerCase().includes(search.toLowerCase())) ||
-            (post.content && post.content.toLowerCase().includes(search.toLowerCase())) ||
-            (post.tags || []).some((t) => t.includes(search.toLowerCase())))
-      );
-    return posts;
+  if (normalizedDestination) {
+    query = query.where('destination', '==', normalizedDestination);
   }
 
   if (after) {
@@ -185,10 +169,37 @@ export const listCommunityPosts = async ({ destination, tag, search, limit = 10,
     }
   }
 
-  const snapshot = await query.limit(limit).get();
-  return snapshot.docs
+  const fetchLimit = normalizedTag || normalizedSearch ? Math.min(100, Math.max(limit * 3, 30)) : limit;
+  const snapshot = await query.limit(fetchLimit).get();
+
+  let posts = snapshot.docs
     .map((doc) => buildPostResponse(doc, viewerId))
     .filter((post) => post && post.publishToCommunity !== false);
+
+  if (normalizedTag) {
+    posts = posts.filter((post) =>
+      Array.isArray(post.tags) && post.tags.some((tagValue) => tagValue === normalizedTag)
+    );
+  }
+
+  if (normalizedSearch) {
+    posts = posts.filter((post) => {
+      const haystack = `${post.title || ''} ${post.content || ''}`.toLowerCase();
+      const matchesText = haystack.includes(normalizedSearch);
+      const matchesTags = Array.isArray(post.tags)
+        ? post.tags.some((tagValue) => tagValue.includes(normalizedSearch))
+        : false;
+      return matchesText || matchesTags;
+    });
+  }
+
+  if (normalizedDestination) {
+    posts = posts.filter(
+      (post) => (post.destination || '').trim().toLowerCase() === normalizedDestination.toLowerCase()
+    );
+  }
+
+  return posts.slice(0, limit);
 };
 
 export const getCommunityPost = async (postId, viewerId = null) => {
