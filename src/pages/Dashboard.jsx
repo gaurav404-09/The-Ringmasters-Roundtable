@@ -213,9 +213,12 @@ const Dashboard = () => {
         derivedStatus = 'live';
       }
 
+      const isConfirmed = ['confirmed', 'live', 'completed'].includes(derivedStatus);
+
       return {
         ...trip,
         derivedStatus,
+        isConfirmed,
         dateRange: {
           start: trip.startDate,
           end: trip.endDate,
@@ -224,20 +227,26 @@ const Dashboard = () => {
     });
   }, [trips]);
 
-  const liveTrips = useMemo(() => 
-    decoratedTrips.filter(trip => trip.derivedStatus === 'live'),
+  const backlogTrips = useMemo(
+    () => decoratedTrips.filter((trip) => !trip.isConfirmed),
     [decoratedTrips]
   );
 
-  const upcomingTrips = useMemo(() => 
-    decoratedTrips.filter(trip => 
-      trip.derivedStatus !== 'live' && trip.derivedStatus !== 'completed'
-    ),
+  const liveTrips = useMemo(
+    () => decoratedTrips.filter((trip) => trip.isConfirmed && trip.derivedStatus === 'live'),
     [decoratedTrips]
   );
 
-  const completedTrips = useMemo(() => 
-    decoratedTrips.filter(trip => trip.derivedStatus === 'completed'),
+  const upcomingTrips = useMemo(
+    () =>
+      decoratedTrips.filter(
+        (trip) => trip.isConfirmed && trip.derivedStatus !== 'live' && trip.derivedStatus !== 'completed'
+      ),
+    [decoratedTrips]
+  );
+
+  const completedTrips = useMemo(
+    () => decoratedTrips.filter((trip) => trip.isConfirmed && trip.derivedStatus === 'completed'),
     [decoratedTrips]
   );
 
@@ -312,7 +321,7 @@ const Dashboard = () => {
   };
 
   const renderTripCard = (trip, keyPrefix = 'trip', options = {}) => {
-    const { showConfirm = trip.derivedStatus !== 'confirmed' && trip.derivedStatus !== 'live', variant = 'default' } = options;
+    const { showConfirm = !trip.isConfirmed, variant = 'default' } = options;
 
     const itinerary = fallbackItinerary(trip);
     const primaryCity = extractCity(trip);
@@ -528,6 +537,22 @@ const Dashboard = () => {
 
         {/* Trips */}
         <div className="space-y-8">
+          {/* Pending Confirmation */}
+          {backlogTrips.length > 0 && (
+            <section>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                Pending Confirmation
+              </h2>
+              <p className="text-sm text-gray-400 mb-4">
+                Lock these itineraries first to move them into upcoming, live, or past trips.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {backlogTrips.map(trip => renderTripCard(trip, 'backlog', { variant: 'default' }))}
+              </div>
+            </section>
+          )}
+
           {/* Live Trips */}
           {liveTrips.length > 0 && (
             <section>
