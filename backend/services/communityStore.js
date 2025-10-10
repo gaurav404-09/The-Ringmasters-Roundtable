@@ -160,18 +160,17 @@ export const createCommunityPost = async ({
   return buildPostResponse(postDoc, uid);
 };
 
-export const listCommunityPosts = async ({ destination, tag, search, sentiment, limit = 10, after }, viewerId = null) => {
+export const listCommunityPosts = async ({ destination, source, tag, search, sentiment, limit = 10, after }, viewerId = null) => {
   const firestore = ensureFirestore();
   let query = firestore.collection(POSTS_COLLECTION).orderBy('createdAt', 'desc');
 
   const normalizedDestination = typeof destination === 'string' ? destination.trim() : '';
+  const normalizedSource = typeof source === 'string' ? source.trim() : '';
   const normalizedTag = typeof tag === 'string' ? tag.trim().toLowerCase() : '';
   const normalizedSearch = typeof search === 'string' ? search.trim().toLowerCase() : '';
   const normalizedSentiment = typeof sentiment === 'string' ? sentiment.trim().toLowerCase() : '';
 
-  if (normalizedDestination) {
-    query = query.where('destination', '==', normalizedDestination);
-  }
+  // Destination filtering is applied client-side to avoid requiring composite indexes
 
   // Filter by sentiment if specified (temporarily disabled until index is created)
   // if (normalizedSentiment && ['positive', 'negative', 'neutral'].includes(normalizedSentiment)) {
@@ -185,12 +184,20 @@ export const listCommunityPosts = async ({ destination, tag, search, sentiment, 
     }
   }
 
-  const fetchLimit = normalizedTag || normalizedSearch || normalizedSentiment ? Math.min(100, Math.max(limit * 3, 30)) : limit;
+  const fetchLimit = normalizedTag || normalizedSearch || normalizedSentiment || normalizedSource || normalizedDestination
+    ? Math.min(100, Math.max(limit * 3, 30))
+    : limit;
   const snapshot = await query.limit(fetchLimit).get();
 
   let posts = snapshot.docs
     .map((doc) => buildPostResponse(doc, viewerId))
     .filter((post) => post && post.publishToCommunity !== false);
+
+  if (normalizedSource) {
+    posts = posts.filter(
+      (post) => (post.source || '').trim().toLowerCase() === normalizedSource.toLowerCase()
+    );
+  }
 
   if (normalizedTag) {
     posts = posts.filter((post) =>

@@ -10,6 +10,7 @@ import PostComposer from '../components/PostComposer';
 import CommentThread from '../components/CommentThread';
 import SentimentStats from '../components/SentimentStats';
 import ENV from '../config/env';
+import TripFilterSelect from '../components/TripFilterSelect';
 
 const emptyState = {
   posts: [],
@@ -20,6 +21,7 @@ const emptyState = {
 const fetchPosts = async (filters) => {
   const params = new URLSearchParams();
   if (filters.destination) params.set('destination', filters.destination);
+  if (filters.source) params.set('source', filters.source);
   if (filters.tag) params.set('tag', filters.tag);
   if (filters.search) params.set('search', filters.search);
   if (filters.sentiment) params.set('sentiment', filters.sentiment);
@@ -75,8 +77,9 @@ const Community = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({ destination: '', tag: '', search: '', sentiment: '', limit: 12 });
+  const [filters, setFilters] = useState({ source: '', destination: '', tag: '', search: '', sentiment: '', limit: 12 });
   const [state, setState] = useState(emptyState);
+  const [tripOptions, setTripOptions] = useState({ sources: [], destinations: [] });
   const [showComposer, setShowComposer] = useState(false);
   const [composerPrefill, setComposerPrefill] = useState({ source: '', destination: '' });
   const [activePost, setActivePost] = useState(null);
@@ -104,6 +107,48 @@ const Community = () => {
       root.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchTripOptions = async () => {
+      try {
+        const response = await api.get('/community/posts', {
+          params: { limit: 200 }
+        });
+        if (!active) return;
+
+        const posts = Array.isArray(response.data?.posts) ? response.data.posts : [];
+        const sourceSet = new Set();
+        const destinationSet = new Set();
+
+        posts.forEach((post) => {
+          const sourceValue = (post.source || '').trim();
+          if (sourceValue) {
+            sourceSet.add(sourceValue);
+          }
+
+          const destinationValue = (post.destination || '').trim();
+          if (destinationValue) {
+            destinationSet.add(destinationValue);
+          }
+        });
+
+        const sources = Array.from(sourceSet).sort((a, b) => a.localeCompare(b));
+        const destinations = Array.from(destinationSet).sort((a, b) => a.localeCompare(b));
+
+        setTripOptions({ sources, destinations });
+      } catch (error) {
+        console.error('Failed to fetch trip options', error);
+      }
+    };
+
+    fetchTripOptions();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -140,7 +185,7 @@ const Community = () => {
   useEffect(() => {
     loadPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.destination, filters.tag, filters.search, filters.sentiment]);
+  }, [filters.source, filters.destination, filters.tag, filters.search, filters.sentiment]);
 
   const openPost = async (post) => {
     try {
@@ -327,6 +372,22 @@ const Community = () => {
     return Array.from(tagSet).slice(0, 12);
   }, [state.posts]);
 
+  const sourceOptions = useMemo(() => {
+    const values = new Set(tripOptions.sources);
+    if (filters.source) {
+      values.add(filters.source);
+    }
+    return Array.from(values).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [tripOptions.sources, filters.source]);
+
+  const destinationOptions = useMemo(() => {
+    const values = new Set(tripOptions.destinations);
+    if (filters.destination) {
+      values.add(filters.destination);
+    }
+    return Array.from(values).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [tripOptions.destinations, filters.destination]);
+
   return (
     <div className={isDarkMode ? 'dark' : ''}>
       <div className="relative min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 py-16 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -373,13 +434,21 @@ const Community = () => {
                 />
               </div>
 
-              <div className="flex flex-1 items-center gap-2">
-                <div className="flex-1 rounded-2xl bg-white px-4 py-2 shadow-inner dark:bg-slate-900/80 dark:text-slate-200">
-                  <input
+              <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
+                  <TripFilterSelect
+                    label="Origin"
+                    value={filters.source}
+                    onChange={(value) => setFilters((prev) => ({ ...prev, source: value }))}
+                    options={sourceOptions}
+                    placeholder="All origins"
+                  />
+                  <TripFilterSelect
+                    label="Destination"
                     value={filters.destination}
-                    onChange={(event) => setFilters((prev) => ({ ...prev, destination: event.target.value }))}
-                    placeholder="Destination filter (e.g. Goa)"
-                    className="w-full bg-transparent text-sm font-semibold text-slate-600 outline-none dark:text-slate-200"
+                    onChange={(value) => setFilters((prev) => ({ ...prev, destination: value }))}
+                    options={destinationOptions}
+                    placeholder="All destinations"
                   />
                 </div>
 
@@ -387,13 +456,13 @@ const Community = () => {
                   type="button"
                   onClick={() => setIsDarkMode((prev) => !prev)}
                   aria-pressed={isDarkMode}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 shadow-sm transition hover:border-cyan-400 hover:text-cyan-500 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:border-cyan-500 dark:hover:text-cyan-400"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 shadow-sm transition hover:border-cyan-400 hover:text-cyan-500 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:border-cyan-500 dark:hover:text-cyan-400"
                 >
                   {isDarkMode ? <FaSun className="text-sm text-amber-400" /> : <FaMoon className="text-sm text-cyan-500" />}
                   {isDarkMode ? 'Light' : 'Dark'}
                 </button>
-
               </div>
+
             </div>
 
             {/* Sentiment Filter Buttons */}
@@ -451,6 +520,7 @@ const Community = () => {
             {/* Sentiment Stats Sidebar */}
             <div className="relative z-20 lg:col-span-1 lg:pr-6">
               <SentimentStats 
+                source={filters.source}
                 destination={filters.destination} 
                 tag={filters.tag}
               />

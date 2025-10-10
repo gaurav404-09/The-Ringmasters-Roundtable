@@ -29,11 +29,12 @@ const optionalAuth = async (req, res, next) => {
 
 router.get('/posts', optionalAuth, async (req, res) => {
   try {
-    const { destination, tag, search, limit, after, sentiment } = req.query;
+    const { destination, source, tag, search, limit, after, sentiment } = req.query;
     const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 10, 25) : 10;
 
     const posts = await listCommunityPosts({
       destination,
+      source,
       tag,
       search,
       sentiment,
@@ -187,11 +188,12 @@ router.patch('/comments/:commentId/vote', verifyFirebaseToken, async (req, res) 
 // Get sentiment statistics for posts
 router.get('/sentiment/stats', optionalAuth, async (req, res) => {
   try {
-    const { destination, tag, limit } = req.query;
+    const { destination, source, tag, limit } = req.query;
     const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 100, 500) : 100;
 
     const posts = await listCommunityPosts({
       destination,
+      source,
       tag,
       limit: parsedLimit,
     }, req.user?.uid ?? null);

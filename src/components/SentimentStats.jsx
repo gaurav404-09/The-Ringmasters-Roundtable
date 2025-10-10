@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FaSmile, FaFrown, FaMeh, FaChartBar } from 'react-icons/fa';
 import api from '../utils/api';
 
-const SentimentStats = ({ destination, tag }) => {
+const SentimentStats = ({ source, destination, tag }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -14,6 +14,7 @@ const SentimentStats = ({ destination, tag }) => {
         setError(null);
         
         const params = new URLSearchParams();
+        if (source) params.set('source', source);
         if (destination) params.set('destination', destination);
         if (tag) params.set('tag', tag);
         params.set('limit', '100');
@@ -29,7 +30,7 @@ const SentimentStats = ({ destination, tag }) => {
     };
 
     fetchStats();
-  }, [destination, tag]);
+  }, [source, destination, tag]);
 
   if (loading) {
     return (
