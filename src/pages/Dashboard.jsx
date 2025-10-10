@@ -8,14 +8,23 @@ import {
   FiChevronDown,
   FiClock,
   FiCloud,
+  FiEdit2,
   FiMapPin,
   FiPlus,
   FiRefreshCw,
   FiTrash2,
   FiTrendingUp,
+  FiX,
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
-import { deleteUserTrip, fetchUserTrips, confirmTripItem, confirmEntireTrip } from '../lib/apiClient';
+import {
+  deleteUserTrip,
+  fetchUserTrips,
+  confirmTripItem,
+  confirmEntireTrip,
+  updateTripActivity,
+  addTripActivity,
+} from '../lib/apiClient';
 import NearbyAttractions from '../components/NearbyAttractions.jsx';
 
 const quickActions = [
@@ -174,6 +183,108 @@ const getNextConfirmedActivity = (trip) => {
   return upcoming[0] || null;
 };
 
+const getActivityStatusStyles = (activity) => {
+  if (activity?.status === 'confirmed') {
+    return {
+      badge: 'bg-emerald-400 text-slate-900',
+      wrapper: 'border border-emerald-400/60 bg-emerald-400/15 text-emerald-100',
+      accent: 'text-emerald-300',
+    };
+  }
+  if (activity?.status === 'pending') {
+    return {
+      badge: 'bg-amber-300/80 text-slate-900',
+      wrapper: 'border border-amber-300/50 bg-amber-300/10 text-amber-100',
+      accent: 'text-amber-200',
+    };
+  }
+  return {
+    badge: 'bg-white/15 text-white/70',
+    wrapper: 'border border-white/10 bg-white/5 text-white/80',
+    accent: 'text-white/60',
+  };
+};
+
+const getTripStatusMeta = (status) => {
+  switch (status) {
+    case 'live':
+      return {
+        label: 'Live',
+        pillClass: 'bg-cyan-300/20 border border-cyan-300/60 text-cyan-100',
+        icon: '🚀',
+        variant: 'live',
+      };
+    case 'confirmed':
+      return {
+        label: 'Confirmed',
+        pillClass: 'bg-emerald-300/20 border border-emerald-300/60 text-emerald-100',
+        icon: '🎟️',
+        variant: 'default',
+      };
+    case 'completed':
+      return {
+        label: 'Completed',
+        pillClass: 'bg-indigo-300/20 border border-indigo-300/60 text-indigo-100',
+        icon: '🏁',
+        variant: 'finished',
+      };
+    default:
+      return {
+        label: 'Draft',
+        pillClass: 'bg-white/10 border border-white/20 text-white/70',
+        icon: '🗂️',
+        variant: 'default',
+      };
+  }
+};
+
+const formatActivityTime = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'TBD';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatCitiesLabel = (cities) => {
+  if (!cities.length) return 'Destinations pending';
+  if (cities.length === 1) return cities[0];
+  if (cities.length === 2) return `${cities[0]} • ${cities[1]}`;
+  return `${cities[0]} • ${cities[1]} +${cities.length - 2}`;
+};
+
+const deriveDayNumber = (day, fallbackIndex) => {
+  if (!day) return fallbackIndex + 1;
+  const numericDay = Number(day.day);
+  if (Number.isFinite(numericDay) && numericDay > 0) {
+    return numericDay;
+  }
+  const numericId = Number(String(day.id || '').replace(/[^0-9]/g, ''));
+  if (Number.isFinite(numericId) && numericId > 0) {
+    return numericId;
+  }
+  return fallbackIndex + 1;
+};
+
+const buildDayIdentifier = (day, fallbackIndex) => {
+  const dayNumber = deriveDayNumber(day, fallbackIndex);
+  const identifier = {};
+  if (day?.id) {
+    identifier.id = day.id;
+  }
+  if (day?.date) {
+    identifier.date = day.date;
+  }
+  if (Number.isFinite(dayNumber)) {
+    identifier.dayNumber = dayNumber;
+  }
+
+  if (!Object.keys(identifier).length) {
+    identifier.dayNumber = fallbackIndex + 1;
+  }
+
+  return { dayNumber, identifier };
+};
+
+const editableStatuses = ['suggested', 'pending', 'planned', 'proposed'];
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [trips, setTrips] = useState([]);
@@ -182,6 +293,8 @@ const Dashboard = () => {
   const [confirmingItemId, setConfirmingItemId] = useState(null);
   const [confirmingTripId, setConfirmingTripId] = useState(null);
   const [expandedTripId, setExpandedTripId] = useState(null);
+  const [activityEditor, setActivityEditor] = useState(null);
+  const [savingActivity, setSavingActivity] = useState(false);
 
   const loadTrips = useCallback(async () => {
     if (!user?.uid) return;
@@ -205,7 +318,10 @@ const Dashboard = () => {
 
   const metrics = useMemo(() => {
     const totalTrips = trips.length;
-    const totalDays = trips.reduce((acc, trip) => acc + (fallbackItinerary(trip).length || trip.numDays || 0), 0);
+    const totalDays = trips.reduce(
+      (acc, trip) => acc + (fallbackItinerary(trip).length || trip.numDays || 0),
+      0,
+    );
     const uniqueCities = new Set();
     trips.forEach((trip) => {
       extractCities(trip).forEach((city) => uniqueCities.add(city));
@@ -248,7 +364,7 @@ const Dashboard = () => {
       latestLogs.forEach((message, index) => {
         events.push({
           id: `${trip.id}-${index}`,
-          tripTitle: trip.title || `${trip.startCity} → ${trip.endCity}`,
+          tripTitle: trip.title || `${trip.startCity || 'Start'} → ${trip.endCity || 'End'}`,
           message,
           timestamp: trip.updatedAt || trip.createdAt,
         });
@@ -258,6 +374,43 @@ const Dashboard = () => {
       .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
       .slice(0, 8);
   }, [trips]);
+
+  const decoratedTrips = useMemo(
+    () =>
+      trips.map((trip) => {
+        const derivedStatus = getDerivedTripStatus(trip);
+        const dateRange = getTripDateRange(trip);
+        const nextActivity = derivedStatus === 'live' ? getNextConfirmedActivity(trip) : null;
+        return {
+          ...trip,
+          derivedStatus,
+          dateRange,
+          nextActivity,
+          isLive: derivedStatus === 'live' || isTripLiveNow(trip),
+        };
+      }),
+    [trips],
+  );
+
+  const liveTrips = useMemo(
+    () => decoratedTrips.filter((trip) => trip.derivedStatus === 'live'),
+    [decoratedTrips],
+  );
+
+  const upcomingTrips = useMemo(
+    () =>
+      decoratedTrips.filter(
+        (trip) => trip.derivedStatus !== 'live' && trip.derivedStatus !== 'completed',
+      ),
+    [decoratedTrips],
+  );
+
+  const completedTrips = useMemo(
+    () => decoratedTrips.filter((trip) => trip.derivedStatus === 'completed'),
+    [decoratedTrips],
+  );
+
+  const displayName = user?.displayName || user?.email || 'Traveler';
 
   const toggleTrip = (tripId) => {
     setExpandedTripId((prev) => (prev === tripId ? null : tripId));
@@ -287,12 +440,13 @@ const Dashboard = () => {
   };
 
   const handleConfirmItem = async (trip, activity) => {
-    if (!user?.uid || !trip?.id || !activity?.itemId) {
+    const itemId = activity?.itemId || activity?.id;
+    if (!user?.uid || !trip?.id || !itemId) {
       toast.error('Missing information to confirm this booking.');
       return;
     }
 
-    const itemKey = `${trip.id}:${activity.itemId}`;
+    const itemKey = `${trip.id}:${itemId}`;
     setConfirmingItemId(itemKey);
 
     try {
@@ -302,7 +456,7 @@ const Dashboard = () => {
         price: activity?.bookingDetails?.price || 'TBD',
       };
 
-      const response = await confirmTripItem(user.uid, trip.id, activity.itemId, dummyBookingDetails);
+      const response = await confirmTripItem(user.uid, trip.id, itemId, dummyBookingDetails);
       if (!response?.success || !response?.trip) {
         throw new Error(response?.error || 'Failed to confirm itinerary item');
       }
@@ -317,70 +471,13 @@ const Dashboard = () => {
     }
   };
 
-  const getActivityStatusStyles = (activity) => {
-    if (activity?.status === 'confirmed') {
-      return {
-        badge: 'bg-emerald-400 text-slate-900',
-        card: 'border-emerald-300/80 bg-emerald-300/15 text-emerald-100',
-        icon: 'text-emerald-300',
-      };
-    }
-    return {
-      badge: 'bg-white/15 text-white/70',
-      card: 'border-white/10 bg-white/5 text-white/80',
-      icon: 'text-white/70',
-    };
-  };
-
-  const getTripStatusMeta = (status) => {
-    switch (status) {
-      case 'confirmed':
-        return {
-          label: 'Confirmed',
-          pillClass: 'bg-emerald-300/20 border border-emerald-300/60 text-emerald-100',
-          icon: '🎟️',
-        };
-      case 'live':
-        return {
-          label: 'Live',
-          pillClass: 'bg-cyan-300/20 border border-cyan-300/60 text-cyan-100',
-          icon: '🚀',
-        };
-      case 'completed':
-        return {
-          label: 'Completed',
-          pillClass: 'bg-indigo-300/20 border border-indigo-300/60 text-indigo-100',
-          icon: '🏁',
-        };
-      default:
-        return {
-          label: 'Draft',
-          pillClass: 'bg-white/10 border border-white/20 text-white/70',
-          icon: '🗂️',
-        };
-    }
-  };
-
-  const decoratedTrips = useMemo(() => {
-    return trips.map((trip) => {
-      const derivedStatus = getDerivedTripStatus(trip);
-      const dates = getTripDateRange(trip);
-      const nextActivity = derivedStatus === 'live' ? getNextConfirmedActivity(trip) : null;
-      return {
-        ...trip,
-        derivedStatus,
-        dateRange: dates,
-        nextActivity,
-      };
-    });
-  }, [trips]);
-
-  const liveTrips = useMemo(() => decoratedTrips.filter((trip) => trip.derivedStatus === 'live'), [decoratedTrips]);
-
   const handleDeleteTrip = async (tripId) => {
     if (!user?.uid) return;
-    const confirmed = window.confirm('Remove this saved trip from your dashboard?');
-    if (!confirmed) return;
+
+    if (!window.confirm('Remove this saved trip from your dashboard?')) {
+      return;
+    }
+
     try {
       await deleteUserTrip(user.uid, tripId);
       setTrips((prev) => prev.filter((trip) => trip.id !== tripId));
@@ -394,7 +491,356 @@ const Dashboard = () => {
     }
   };
 
-  const displayName = user?.displayName || user?.email || 'traveler';
+  const openActivityEditor = (trip, day, dayIndex, activity = null) => {
+    if (!trip?.id || !day) return;
+    const { identifier, dayNumber } = buildDayIdentifier(day, dayIndex);
+    const itemId = activity?.itemId || activity?.id || null;
+
+    setActivityEditor({
+      tripId: trip.id,
+      dayIdentifier: identifier,
+      dayNumber,
+      city: day?.city,
+      transportMode: trip?.transportMode || trip?.result?.transport_mode,
+      activity: activity
+        ? {
+            itemId,
+            title: activity?.title || activity?.name || '',
+            time: activity?.time || activity?.slot || '',
+            notes: activity?.notes || activity?.description || '',
+            location: activity?.location || activity?.venue || '',
+            status: activity?.status || 'suggested',
+          }
+        : {
+            itemId: null,
+            title: '',
+            time: '',
+            notes: '',
+            location: '',
+            status: 'suggested',
+          },
+    });
+  };
+
+  const closeActivityEditor = () => {
+    setActivityEditor(null);
+  };
+
+  const handleActivityFieldChange = (field, value) => {
+    setActivityEditor((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        activity: {
+          ...prev.activity,
+          [field]: value,
+        },
+      };
+    });
+  };
+
+  const handleSaveActivity = async () => {
+    if (!activityEditor || !user?.uid) return;
+    const { tripId, activity, dayIdentifier } = activityEditor;
+    const isEdit = Boolean(activity?.itemId);
+
+    if (!activity?.title?.trim()) {
+      toast.error('Activity title is required.');
+      return;
+    }
+
+    const normalizedStatus = (activity.status || '').toLowerCase();
+    const cleanPayload = {
+      title: activity.title.trim(),
+      time: activity.time?.trim() || '',
+      notes: activity.notes?.trim() || '',
+      location: activity.location?.trim() || '',
+      status: editableStatuses.includes(normalizedStatus) ? normalizedStatus : 'suggested',
+    };
+
+    setSavingActivity(true);
+    try {
+      let response;
+      if (isEdit) {
+        response = await updateTripActivity(user.uid, tripId, activity.itemId, cleanPayload);
+      } else {
+        response = await addTripActivity(user.uid, tripId, {
+          dayIdentifier,
+          activity: cleanPayload,
+        });
+      }
+
+      if (!response?.success || !response?.trip) {
+        throw new Error(response?.error || 'Failed to save activity');
+      }
+
+      setTrips((prev) => prev.map((existing) => (existing.id === tripId ? response.trip : existing)));
+      toast.success(isEdit ? 'Activity updated.' : 'Activity added to itinerary.');
+      closeActivityEditor();
+    } catch (err) {
+      console.error('Failed to save activity:', err);
+      toast.error(err?.message || 'Unable to save activity right now.');
+    } finally {
+      setSavingActivity(false);
+    }
+  };
+
+  const renderTripCard = (trip, keyPrefix = 'trip', options = {}) => {
+    const { variant: variantOverride, showConfirm = trip.derivedStatus !== 'confirmed' && trip.derivedStatus !== 'live' } = options;
+
+    const itinerary = fallbackItinerary(trip);
+    const cities = extractCities(trip);
+    const statusMeta = getTripStatusMeta(trip.derivedStatus);
+    const variant = variantOverride || statusMeta.variant || 'default';
+    const nextActivity = trip.nextActivity;
+    const isExpanded = expandedTripId === trip.id;
+    const isConfirmingTrip = confirmingTripId === trip.id;
+    const dayCount = itinerary.length || trip.numDays || 0;
+    const lastUpdated = trip.updatedAt || trip.createdAt;
+    const displayTitle = trip.title || `${trip.startCity || 'Origin'} → ${trip.endCity || 'Destination'}`;
+    const eventsByCity = trip?.result?.events || trip?.events || {};
+
+    const baseClasses = {
+      live: 'rounded-3xl border border-cyan-400/40 bg-white/5 p-6 shadow-[0_25px_70px_rgba(14,165,233,0.35)] backdrop-blur',
+      finished: 'rounded-3xl border border-indigo-400/40 bg-indigo-500/10 p-6 shadow-[0_22px_60px_rgba(79,70,229,0.35)] backdrop-blur',
+      default: 'rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.35)] backdrop-blur',
+    };
+
+    return (
+      <motion.article
+        key={`${keyPrefix}-${trip.id}`}
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className={baseClasses[variant] || baseClasses.default}
+      >
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-white">{displayTitle}</h3>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+              {formatDateRange(trip.dateRange?.start, trip.dateRange?.end)} • {formatCitiesLabel(cities)} • {dayCount} days orchestrated
+            </p>
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] ${statusMeta.pillClass}`}>
+              <span>{statusMeta.icon}</span>
+              {statusMeta.label}
+            </span>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/45">
+              Updated {formatRelativeTime(lastUpdated)}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-2 md:mt-0">
+            <button
+              type="button"
+              onClick={() => toggleTrip(trip.id)}
+              className="group inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/40 hover:text-white"
+              aria-label={isExpanded ? 'Collapse trip details' : 'Expand trip details'}
+            >
+              View details
+              <FiChevronDown className={`transform transition-transform group-hover:translate-y-0.5 ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showConfirm && (
+              <button
+                type="button"
+                onClick={() => handleConfirmTrip(trip)}
+                disabled={isConfirmingTrip}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isConfirmingTrip ? 'Confirming…' : 'Confirm trip'}
+              </button>
+            )}
+
+            {trip.derivedStatus === 'completed' && (
+              <Link
+                to={{
+                  pathname: '/community',
+                  search: `?openComposer=1&source=${encodeURIComponent(trip.startCity || '')}&destination=${encodeURIComponent(trip.endCity || '')}`,
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-300/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-200 transition hover:bg-emerald-400/10"
+              >
+                Share review
+              </Link>
+            )}
+
+            <button
+              type="button"
+              onClick={() => handleDeleteTrip(trip.id)}
+              className="inline-flex items-center gap-2 rounded-full border border-red-400/40 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-red-300 transition hover:border-red-300/80 hover:text-red-200"
+            >
+              <FiTrash2 />
+              Remove
+            </button>
+          </div>
+        </div>
+
+        {nextActivity && (
+          <div className="mt-4 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-200">Next confirmed act</p>
+            <div className="mt-2 flex flex-wrap items-center gap-4">
+              <span className="text-base font-semibold text-white">{nextActivity.activity?.title || nextActivity.activity?.name || 'Pending confirmation'}</span>
+              <span className="text-xs uppercase tracking-[0.3em] text-emerald-200">
+                {formatActivityTime(nextActivity.scheduledAt)}
+              </span>
+              {nextActivity.city && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/40 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-emerald-100">
+                  <FiMapPin />
+                  {nextActivity.city}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mt-4 overflow-hidden"
+            >
+              <div className="pt-4 border-t border-white/10">
+                <h4 className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">Itinerary breakdown</h4>
+                <div className="mt-4 space-y-4">
+                  {itinerary.length > 0 ? (
+                    itinerary.map((day, dayIndex) => (
+                      <div key={dayIndex} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-white/90">Day {dayIndex + 1}</p>
+                            {day?.city && (
+                              <p className="text-xs uppercase tracking-[0.3em] text-white/50">{day.city}</p>
+                            )}
+                          </div>
+                          {day?.weather && (
+                            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/70">
+                              {day.weather.temp}°C · {day.weather.weather}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_minmax(0,0.8fr)]">
+                          <div className="space-y-3">
+                            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Agent-selected activities</p>
+                            {day.activities?.length ? (
+                              day.activities.map((activity, activityIndex) => {
+                                const itemId = activity?.itemId || activity?.id || `${dayIndex}-${activityIndex}`;
+                                const itemKey = `${trip.id}:${itemId}`;
+                                const isConfirmingItem = confirmingItemId === itemKey;
+                                const styles = getActivityStatusStyles(activity);
+                                const notes = activity?.notes || activity?.description;
+
+                                return (
+                                  <div
+                                    key={itemId}
+                                    className={`flex flex-col gap-3 rounded-2xl p-3 transition ${styles.wrapper}`}
+                                  >
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                      <div>
+                                        <p className="text-sm font-semibold text-white">{activity?.title || activity?.name || 'Untitled activity'}</p>
+                                        {(activity?.time || activity?.slot) && (
+                                          <p className={`text-xs uppercase tracking-[0.3em] ${styles.accent}`}>
+                                            {activity?.time || activity?.slot}
+                                          </p>
+                                        )}
+                                        {(activity?.location || activity?.venue) && (
+                                          <p className="text-xs text-white/60">
+                                            {activity?.location || activity?.venue}
+                                          </p>
+                                        )}
+                                        {notes && (
+                                          <p className="mt-2 text-xs text-white/70">{notes}</p>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                                        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] ${styles.badge}`}>
+                                          {activity?.status === 'confirmed' ? 'Confirmed' : activity?.status || 'Proposed'}
+                                        </span>
+                                        {activity?.status !== 'confirmed' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => openActivityEditor(trip, day, dayIndex, activity)}
+                                            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/40 hover:text-white"
+                                          >
+                                            <FiEdit2 className="text-xs" />
+                                            Edit
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {activity?.status === 'pending' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleConfirmItem(trip, activity)}
+                                        disabled={isConfirmingItem}
+                                        className="inline-flex w-max items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        {isConfirmingItem ? 'Confirming…' : 'Confirm booking'}
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p className="text-sm text-white/60 italic">No curated activities for this day.</p>
+                            )}
+                            {trip.derivedStatus !== 'confirmed' && (
+                              <button
+                                type="button"
+                                onClick={() => openActivityEditor(trip, day, dayIndex, null)}
+                                className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/40 hover:text-white"
+                              >
+                                <FiPlus className="text-sm" />
+                                Add custom activity
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="space-y-3">
+                            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Live events feed</p>
+                            {(() => {
+                              const events = Array.isArray(eventsByCity?.[day?.city]) ? eventsByCity[day.city] : [];
+                              if (!events.length) {
+                                return (
+                                  <p className="text-sm text-white/60 italic">
+                                    No live events were synced for this city.
+                                  </p>
+                                );
+                              }
+
+                              return events.map((event, eventIndex) => (
+                                <div
+                                  key={`${day?.city || 'city'}-${eventIndex}`}
+                                  className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80"
+                                >
+                                  <p className="font-semibold text-white">{event.title || event.name}</p>
+                                  {(event.date || event.time) && (
+                                    <p className="text-xs text-white/60">{event.date || event.time}</p>
+                                  )}
+                                  {event.location && (
+                                    <p className="text-xs text-white/60">{event.location}</p>
+                                  )}
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-white/60 italic">No itinerary items yet.</p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.article>
+    );
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
@@ -403,10 +849,10 @@ const Dashboard = () => {
 
       <main className="relative mx-auto max-w-7xl px-6 pb-24 pt-24 sm:px-8 lg:px-12">
         <motion.section
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
-          className="overflow-hidden rounded-4xl border border-white/10 bg-gradient-to-br from-slate-950/90 via-slate-950/80 to-slate-900/80 p-10 shadow-[0_28px_70px_rgba(15,118,133,0.35)]"
+          className="overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-950/90 via-slate-950/80 to-slate-900/80 p-10 shadow-[0_28px_70px_rgba(15,118,133,0.35)]"
         >
           <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl space-y-5">
@@ -445,7 +891,7 @@ const Dashboard = () => {
                 <Link
                   key={title}
                   to={to}
-                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5/95 p-5 backdrop-blur transition hover:-translate-y-1 hover:border-white/30"
+                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:-translate-y-1 hover:border-white/30"
                 >
                   <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone} opacity-40 blur-3xl transition group-hover:opacity-60`} aria-hidden="true" />
                   <div className="relative flex flex-col gap-3">
@@ -469,7 +915,7 @@ const Dashboard = () => {
               key={label}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
               className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.35)] backdrop-blur"
             >
               <div className="flex items-center justify-between">
@@ -484,18 +930,34 @@ const Dashboard = () => {
           ))}
         </section>
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-[1.6fr_1fr]">
+        <div className="mt-12 grid gap-10 lg:grid-cols-[1.65fr_minmax(320px,0.85fr)]">
           <section className="space-y-6">
-            <div className="flex items-center justify_between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-2xl font-semibold text-white">Saved itineraries</h2>
                 <p className="text-sm text-white/60">Replay multi-agent runs, duplicate winning acts, or prune unused drafts.</p>
               </div>
             </div>
 
-            {loadingTrips ? (
+            {error && (
+              <div className="rounded-3xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>{error}</span>
+                  <button
+                    type="button"
+                    onClick={loadTrips}
+                    className="inline-flex items-center gap-2 rounded-full border border-rose-200/40 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-rose-100 transition hover:border-rose-100/60"
+                  >
+                    <FiRefreshCw className="h-3.5 w-3.5" />
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {loadingTrips && (
               <div className="space-y-4">
-                {[1, 2].map((placeholder) => (
+                {[0, 1].map((placeholder) => (
                   <div key={placeholder} className="animate-pulse rounded-3xl border border-white/10 bg-white/5 p-6">
                     <div className="h-5 w-40 rounded bg-white/20" />
                     <div className="mt-4 h-3 w-full rounded bg-white/10" />
@@ -503,11 +965,9 @@ const Dashboard = () => {
                   </div>
                 ))}
               </div>
-            ) : error ? (
-              <div className="rounded-3xl border border-rose-400/50 bg-rose-500/10 p-6 text-sm text-rose-100">
-                {error}
-              </div>
-            ) : trips.length === 0 ? (
+            )}
+
+            {!loadingTrips && trips.length === 0 && !error && (
               <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/70">
                 <h3 className="text-lg font-semibold text-white">No saved trips yet</h3>
                 <p className="mt-2 text-sm">
@@ -521,295 +981,221 @@ const Dashboard = () => {
                   Launch planner
                 </Link>
               </div>
-            ) : (
+            )}
+
+            {!loadingTrips && trips.length > 0 && (
               <div className="space-y-6">
                 {liveTrips.length > 0 && (
-                  <section className="rounded-3xl border border-emerald-400/30 bg-emerald-500/10 p-6 text-white shadow-[0_25px_60px_rgba(16,185,129,0.25)] backdrop-blur">
-                    <h2 className="text-xl font-semibold">Live tours in motion</h2>
-                    <p className="mt-1 text-sm text-emerald-100/80">
-                      These trips are within their scheduled dates and have been fully confirmed. Tracking every movement keeps the crew in sync.
-                    </p>
-                    <div className="mt-6 grid gap-4 lg:grid-cols-2">
-                      {liveTrips.map((trip) => {
-                        const next = trip.nextActivity;
-                        const statusMeta = getTripStatusMeta('live');
-                        return (
-                          <div key={`live-${trip.id}`} className="flex flex-col gap-4 rounded-2xl border border-emerald-300/50 bg-emerald-400/10 p-4 shadow-[0_18px_45px_rgba(16,185,129,0.2)]">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm uppercase tracking-[0.3em] text-emerald-100/80">Live now</p>
-                                <h3 className="mt-1 text-lg font-semibold text-white">{trip.title || `${trip.startCity} → ${trip.endCity}`}</h3>
-                              </div>
-                              <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] ${statusMeta.pillClass}`}>
-                                <span>{statusMeta.icon}</span>
-                                {statusMeta.label}
-                              </span>
-                            </div>
-                            <p className="text-xs uppercase tracking-[0.35em] text-emerald-100/70">
-                              {formatDateRange(trip.dateRange.start, trip.dateRange.end)}
-                            </p>
-                            {next ? (
-                              <div className="rounded-xl border border-emerald-300/40 bg-emerald-300/10 p-3 text-sm text-emerald-50">
-                                <p className="text-xs uppercase tracking-[0.35em] text-emerald-100/70">Up next</p>
-                                <p className="mt-1 font-semibold text-white">{next.activity.title || 'Scheduled activity'}</p>
-                                <p className="text-xs text-emerald-100/70">
-                                  {next.scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {next.city || `Day ${next.dayLabel}`}
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="rounded-xl border border-emerald-300/30 bg-emerald-300/5 p-3 text-xs text-emerald-100/70">
-                                All confirmed items for today are complete. Monitor for any ad-hoc changes.
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                      <h3 className="text-lg font-semibold text-white">Live tours in motion</h3>
                     </div>
-                  </section>
+                    <div className="space-y-4">
+                      {liveTrips.map((trip) => renderTripCard(trip, 'live', { variant: 'live', showConfirm: trip.derivedStatus !== 'live' }))}
+                    </div>
+                  </div>
                 )}
 
-                {trips.map((trip) => {
-                  const decorated = decoratedTrips.find((item) => item.id === trip.id) || trip;
-                  const itinerary = fallbackItinerary(trip);
-                  const primaryCities = extractCities(trip);
-                  const dayCount = itinerary.length || trip.numDays || 0;
-                  const lastUpdated = trip.updatedAt || trip.createdAt;
-                  const statusMeta = getTripStatusMeta(decorated.derivedStatus);
+                {upcomingTrips.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white">Upcoming itineraries</h3>
+                    <div className="space-y-4">
+                      {upcomingTrips.map((trip) => renderTripCard(trip, 'upcoming'))}
+                    </div>
+                  </div>
+                )}
 
-                  return (
-                    <motion.div
-                      key={trip.id}
-                      initial={{ opacity: 0, y: 18 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.35, ease: 'easeOut' }}
-                      className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_22px_55px_rgba(15,23,42,0.4)] backdrop-blur"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div className="space-y-2">
-                          <h3 className="text-xl font-semibold text-white">{trip.title || `${trip.startCity} → ${trip.endCity}`}</h3>
-                          <p className="text-xs uppercase tracking-[0.35em] text-white/50">
-                            Saved {formatRelativeTime(lastUpdated)} • {primaryCities.length} cities • {dayCount} days orchestrated
-                          </p>
-                          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] ${statusMeta.pillClass}`}>
-                            <span>{statusMeta.icon}</span>
-                            {statusMeta.label}
-                          </span>
-                          <p className="text-xs uppercase tracking-[0.3em] text-white/45">
-                            {formatDateRange(decorated.dateRange.start, decorated.dateRange.end)}
-                          </p>
-                          <div className="flex flex-wrap gap-2 text-xs text-white/70">
-                            {primaryCities.slice(0, 6).map((city) => (
-                              <span key={city} className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
-                                {city}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col items-stretch gap-2 sm:flex-row">
-                          {decorated.derivedStatus !== 'confirmed' && decorated.derivedStatus !== 'live' && (
-                            <button
-                              type="button"
-                              onClick={() => handleConfirmTrip(trip)}
-                              className="inline-flex items-center justify-center rounded-full border border-emerald-300/60 bg-emerald-300/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100 transition hover:border-emerald-300/80 hover:bg-emerald-300/25 disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={confirmingTripId === trip.id}
-                            >
-                              {confirmingTripId === trip.id ? 'Confirming…' : 'Confirm trip'}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTrip(trip.id)}
-                            className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-rose-400/40 hover:text-rose-200"
-                          >
-                            <FiTrash2 className="mr-1 text-sm" />
-                            Delete
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleTrip(trip.id)}
-                            className="inline-flex items-center justify-center rounded-full border border-white/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:border-white/40 hover:text-white"
-                          >
-                            <FiChevronDown
-                              className={`mr-1 text-sm transition ${expandedTripId === trip.id ? 'rotate-180' : ''}`}
-                            />
-                            Details
-                          </button>
-                        </div>
-                      </div>
-
-                      <AnimatePresence initial={false}>
-                        {expandedTripId === trip.id && (
-                          <motion.div
-                            key="trip-details"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.25, ease: 'easeInOut' }}
-                            className="overflow-hidden"
-                          >
-                            <div className="mt-5 space-y-6">
-                              <div className="grid gap-4 lg:grid-cols-2">
-                                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Itinerary preview</p>
-                                  <div className="mt-3 space-y-3 text-sm text-white/80">
-                                    {itinerary.slice(0, 3).map((day, index) => (
-                                      <div key={index} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                                        <p className="font-semibold">
-                                          Day {day.day || index + 1}: {day.city || day.title || 'Exploration'}
-                                        </p>
-                                        {Array.isArray(day.activities) && day.activities.length > 0 ? (
-                                          <ul className="mt-2 space-y-2 text-xs text-white/60">
-                                            {day.activities.slice(0, 3).map((activity, idx) => {
-                                              const activityWithId = {
-                                                ...activity,
-                                                itemId: activity?.itemId || `${day.id || day.day || index + 1}::${activity?.id || idx + 1}`,
-                                              };
-                                              const styles = getActivityStatusStyles(activityWithId);
-                                              const booking = activityWithId.bookingDetails;
-                                              const isConfirming = confirmingItemId === `${trip.id}:${activityWithId.itemId}`;
-
-                                              return (
-                                                <li
-                                                  key={activityWithId.itemId}
-                                                  className={`rounded-2xl border px-3 py-3 text-left transition ${styles.card}`}
-                                                >
-                                                  <div className="flex items-center justify-between gap-3">
-                                                    <div className="flex items-center gap-2">
-                                                      <span className={`inline-flex h-2 w-2 rounded-full ${styles.icon}`} />
-                                                      <span className="font-semibold text-white">{activityWithId.title}</span>
-                                                    </div>
-                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] ${styles.badge}`}>
-                                                      {activityWithId.status === 'confirmed' ? 'Confirmed' : 'Suggested'}
-                                                    </span>
-                                                  </div>
-                                                  <div className="mt-1 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.3em] text-white/50">
-                                                    {activityWithId.time && <span>{activityWithId.time}</span>}
-                                                    {activityWithId.location && <span>{activityWithId.location}</span>}
-                                                    {activityWithId.type && <span>{activityWithId.type}</span>}
-                                                  </div>
-                                                  {activityWithId.status === 'confirmed' && booking ? (
-                                                    <div className="mt-2 rounded-xl border border-emerald-200/40 bg-emerald-300/10 p-2 text-[11px] text-emerald-50">
-                                                      <p className="uppercase tracking-[0.35em] text-emerald-100/80">Booking details</p>
-                                                      <div className="mt-1 space-y-1">
-                                                        {booking.confirmationNumber && <p>Confirmation: {booking.confirmationNumber}</p>}
-                                                        {booking.referenceCode && <p>Reference: {booking.referenceCode}</p>}
-                                                        {booking.price && <p>Price: {booking.price}</p>}
-                                                      </div>
-                                                    </div>
-                                                  ) : (
-                                                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                                      <p className="text-xs text-white/60">Lock this in when the traveler confirms.</p>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => handleConfirmItem(trip, activityWithId)}
-                                                        disabled={isConfirming}
-                                                        className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/50 bg-emerald-300/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-emerald-100 transition hover:border-emerald-300/80 hover:bg-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                                      >
-                                                        {isConfirming ? 'Locking…' : 'Confirm booking'}
-                                                      </button>
-                                                    </div>
-                                                  )}
-                                                </li>
-                                              );
-                                            })}
-                                          </ul>
-                                        ) : (
-                                          <p className="mt-2 text-xs text-white/60">No activity detail provided.</p>
-                                        )}
-                                      </div>
-                                    ))}
-                                    {itinerary.length > 3 && (
-                                      <p className="text-xs text-white/60">+ {itinerary.length - 3} more day(s) stored in this itinerary.</p>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Agent timeline</p>
-                                  <div className="mt-3 space-y-2 text-xs text-white/70">
-                                    {(trip.orchestrationLogs || []).slice(-6).reverse().map((log, index) => (
-                                      <div key={index} className="flex items-start gap-2">
-                                        <span className="mt-0.5 inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-emerald-300" />
-                                        <span>{log}</span>
-                                      </div>
-                                    ))}
-                                    {!trip.orchestrationLogs?.length && (
-                                      <p className="text-white/50">No agent logs were captured for this run.</p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {trip.result?.events && Object.keys(trip.result.events).length > 0 && (
-                                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Live events pinned</p>
-                                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                                    {Object.entries(trip.result.events).slice(0, 4).map(([city, events]) => (
-                                      <div key={city} className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-                                        <p className="text-sm font-semibold text-white">{city}</p>
-                                        <p className="mt-1">{events.length} curated event(s)</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  );
-                })}
+                {completedTrips.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white">Past productions</h3>
+                    <div className="space-y-4">
+                      {completedTrips.map((trip) => renderTripCard(trip, 'completed', { variant: 'finished', showConfirm: false }))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
 
-          <section className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_55px_rgba(15,23,42,0.4)] backdrop-blur">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Recent agent activity</h2>
-                <span className="text-xs uppercase tracking-[0.35em] text-white/50">Live log</span>
+          <aside className="space-y-6">
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.35)] backdrop-blur">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/50">Multi-agent trail</p>
+                  <h3 className="text-lg font-semibold text-white">Orchestrator activity feed</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadTrips}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/40 hover:text-white"
+                >
+                  <FiRefreshCw className="h-3.5 w-3.5" />
+                  Sync
+                </button>
               </div>
-              <div className="mt-4 space-y-3 text-xs text-white/70">
-                {activityFeed.length === 0 ? (
-                  <p className="text-white/50">Save a trip to see orchestrator updates stream in right here.</p>
-                ) : (
-                  activityFeed.map((entry) => (
-                    <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                      <p className="text-white/80">{entry.message}</p>
-                      <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.35em] text-white/50">
-                        <span>{entry.tripTitle}</span>
-                        <span>{formatRelativeTime(entry.timestamp)}</span>
+              <div className="mt-6 space-y-4">
+                {activityFeed.length > 0 ? (
+                  activityFeed.map((event) => (
+                    <div
+                      key={event.id}
+                      className="rounded-2xl border border-white/10 bg-slate-900/40 p-4 text-sm text-white/75 shadow-inner shadow-slate-900/40"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-white/90">{event.tripTitle}</p>
+                        <span className="text-xs uppercase tracking-[0.3em] text-white/50">
+                          {formatRelativeTime(event.timestamp)}
+                        </span>
                       </div>
+                      <p className="mt-2 text-sm text-white/70">{event.message}</p>
                     </div>
                   ))
+                ) : (
+                  <p className="text-sm text-white/60">No orchestration logs yet. Run the planner or confirm bookings to see real-time agent updates.</p>
                 )}
               </div>
-            </div>
+            </section>
 
-            <NearbyAttractions focus="mixed" limit={5} className="border-white/10 bg-white/5 shadow-[0_18px_45px_rgba(15,23,42,0.4)]" />
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70 shadow-[0_18px_45px_rgba(15,23,42,0.4)] backdrop-blur">
-              <h3 className="text-lg font-semibold text-white">How to get more from the Roundtable</h3>
-              <ul className="mt-3 space-y-3">
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 inline-flex h-2 w-2 flex-shrink-0 rounded-full bg-cyan-300" />
-                  <span>Plan with the orchestrator at least once a week to keep agent models fresh and surface new events.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 inline-flex h-2 w-2 flex-shrink-0 rounded-full bg-cyan-300" />
-                  <span>Use the comparison arena before presenting routes to your crew so you can defend every recommendation.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 inline-flex h-2 w-2 flex-shrink-0 rounded-full bg-cyan-300" />
-                  <span>Leave notes in your saved trips – the next coordinator will see every insight you captured.</span>
-                </li>
-              </ul>
-            </div>
-          </section>
+            <NearbyAttractions focus="mixed" limit={5} />
+          </aside>
         </div>
       </main>
+
+      <AnimatePresence>
+        {activityEditor && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          >
+            <div
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+              onClick={savingActivity ? undefined : closeActivityEditor}
+            />
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="relative z-10 w-full max-w-2xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/95 via-slate-900/90 to-slate-900/85 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.65)]"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.35em] text-white/50">Customise itinerary</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">
+                    {activityEditor.city ? `${activityEditor.city}` : 'Itinerary day'}
+                  </h2>
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/45">
+                    Day {activityEditor.dayNumber}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={savingActivity ? undefined : closeActivityEditor}
+                  className="rounded-full border border-white/15 p-2 text-white/70 transition hover:border-white/35 hover:text-white"
+                  aria-label="Close activity editor"
+                >
+                  <FiX className="text-lg" />
+                </button>
+              </div>
+
+              <form
+                className="mt-6 space-y-5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleSaveActivity();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+                      Activity title
+                    </label>
+                    <input
+                      value={activityEditor.activity.title}
+                      onChange={(event) => handleActivityFieldChange('title', event.target.value)}
+                      placeholder="Sunset cruise"
+                      className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/60 focus:bg-white/10"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+                      Start time
+                    </label>
+                    <input
+                      type="time"
+                      value={activityEditor.activity.time}
+                      onChange={(event) => handleActivityFieldChange('time', event.target.value)}
+                      className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400/60 focus:bg-white/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+                    Location / venue
+                  </label>
+                  <input
+                    value={activityEditor.activity.location}
+                    onChange={(event) => handleActivityFieldChange('location', event.target.value)}
+                    placeholder="Baga Beach"
+                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-400/60 focus:bg-white/10"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+                    Notes / description
+                  </label>
+                  <textarea
+                    value={activityEditor.activity.notes}
+                    onChange={(event) => handleActivityFieldChange('notes', event.target.value)}
+                    rows={4}
+                    placeholder="Add crew callouts, booking hints, or what to pack."
+                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60 focus:bg-white/10"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+                    Status
+                  </label>
+                  <select
+                    value={activityEditor.activity.status}
+                    onChange={(event) => handleActivityFieldChange('status', event.target.value)}
+                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400/60 focus:bg-white/10"
+                  >
+                    {editableStatuses.map((option) => (
+                      <option key={option} value={option} className="bg-slate-900 text-white">
+                        {option.charAt(0).toUpperCase() + option.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={savingActivity ? undefined : closeActivityEditor}
+                    className="inline-flex items-center justify-center rounded-full border border-white/20 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:border-white/40 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingActivity}
+                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-[0_18px_45px_rgba(14,165,233,0.35)] transition hover:shadow-[0_24px_60px_rgba(14,165,233,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingActivity ? 'Saving…' : activityEditor.activity.itemId ? 'Save changes' : 'Add activity'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

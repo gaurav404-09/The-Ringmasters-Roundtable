@@ -86,6 +86,52 @@ class FreeDataService {
     }
   }
 
+  async searchLocations(query, options = {}) {
+    if (!query || typeof query !== 'string') {
+      throw new Error('Query is required for location search');
+    }
+
+    const { limit = 6 } = options;
+    const resolvedLimit = Math.min(Math.max(parseInt(limit, 10) || 6, 1), 10);
+
+    try {
+      const response = await axios.get(`${this.nominatimBaseUrl}/search`, {
+        params: {
+          q: query,
+          format: 'json',
+          addressdetails: 1,
+          limit: resolvedLimit,
+        },
+        headers: {
+          'User-Agent': 'TravelApp/1.0 (https://yourapp.com; contact@yourapp.com)',
+          Referer: 'https://yourapp.com',
+        },
+        timeout: 10000,
+      });
+
+      if (!Array.isArray(response.data)) {
+        return [];
+      }
+
+      return response.data.map((result) => ({
+        id: `${result.osm_type || 'node'}:${result.osm_id}`,
+        name: result.display_name,
+        lat: parseFloat(result.lat),
+        lon: parseFloat(result.lon),
+        type: result.type,
+        address: result.address || {},
+        raw: result,
+      }));
+    } catch (error) {
+      console.error('[FreeDataService] Error searching locations:', error.message);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+      }
+      throw error;
+    }
+  }
+
   // Get attractions for a destination
   async getAttractions(destination, budget = 'medium') {
     console.log(`[FreeDataService] Fetching attractions for: ${destination}`);

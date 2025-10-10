@@ -16,7 +16,7 @@ class Orchestrator:
         # Declare all queues the system needs
         queues_to_declare = [
             'trip_requests_queue', 'trip_status_queue', 'trip_results_queue',
-            'map_queue', 'weather_queue', 'itinerary_queue', 'event_queue'
+            'map_queue', 'weather_queue', 'itinerary_queue', 'event_queue', 'budget_queue'
         ]
         for q in queues_to_declare:
             self.publish_channel.queue_declare(queue=q, durable=True)
@@ -32,7 +32,7 @@ class Orchestrator:
                 # Re-declare queues
                 queues_to_declare = [
                     'trip_requests_queue', 'trip_status_queue', 'trip_results_queue',
-                    'map_queue', 'weather_queue', 'itinerary_queue', 'event_queue'
+                    'map_queue', 'weather_queue', 'itinerary_queue', 'event_queue', 'budget_queue'
                 ]
                 for q in queues_to_declare:
                     self.publish_channel.queue_declare(queue=q, durable=True)
@@ -80,7 +80,9 @@ class Orchestrator:
         final_result = {
             "trip_id": trip_id,
             "itinerary": state.get("itinerary", []),
-            "events": state.get("events", {})
+            "events": state.get("events", {}),
+            "budget": state.get("budget"),
+            "transport_mode": state.get("payload", {}).get("transport_mode", "train_flight")
         }
         self.publish_channel.basic_publish(
             exchange='',
@@ -123,6 +125,10 @@ class Orchestrator:
 
             elif intent == "EventsFound":
                 self.trip_states[trip_id]["events"] = payload.get("events_by_city")
+                self.request_budget(trip_id)
+
+            elif intent == "BudgetComputed":
+                self.trip_states[trip_id]["budget"] = payload.get("budget_summary")
                 self.trip_states[trip_id]["status"] = "COMPLETED"
                 self.send_status_update(trip_id, "Trip plan is complete! Sending result...")
                 self.send_final_result(trip_id)
@@ -139,18 +145,86 @@ class Orchestrator:
 
     def request_itinerary(self, trip_id, route_with_weather):
         self.send_status_update(trip_id, "Contacting Itinerary Agent to build activities...")
-        message = { "trip_id": trip_id, "intent": "GenerateItinerary", "payload": {"route_with_weather": route_with_weather} }
+        state = self.trip_states.get(trip_id, {})
+        transport_mode = state.get("payload", {}).get("transport_mode", "train_flight")
+
+        itinerary_route = route_with_weather
+        if transport_mode == "train_flight" and route_with_weather:
+            itinerary_route = [route_with_weather[-1]]
+
+        message = {
+            "trip_id": trip_id,
+            "intent": "GenerateItinerary",
+            "payload": {"route_with_weather": itinerary_route}
+        }
         self.publish_channel.basic_publish(exchange='', routing_key='itinerary_queue', body=json.dumps(message))
 
     def request_events(self, trip_id, cities):
         self.send_status_update(trip_id, "Contacting Event Agent for local events...")
+        state = self.trip_states.get(trip_id, {})
+        transport_mode = state.get("payload", {}).get("transport_mode", "train_flight")
+
         unique_cities = list(dict.fromkeys(cities))
+        if transport_mode == "train_flight" and unique_cities:
+            unique_cities = [unique_cities[-1]]
+
         message = { "trip_id": trip_id, "intent": "FindEvents", "payload": {"cities": unique_cities} }
         self.publish_channel.basic_publish(exchange='', routing_key='event_queue', body=json.dumps(message))
 
+    def request_budget(self, trip_id):
+        state = self.trip_states.get(trip_id, {})
+        transport_mode = state.get("payload", {}).get("transport_mode", "train_flight")
+
+        if transport_mode == "driving":
+            state["budget"] = None
+            state["status"] = "COMPLETED"
+            self.send_status_update(trip_id, "Budget Agent skipped for driving mode.")
+            self.send_final_result(trip_id)
+            return
+
+        self.send_status_update(trip_id, "Contacting Budget Agent for cheapest combo...")
+        itinerary = state.get("itinerary", [])
+        if not itinerary:
+            self.send_status_update(trip_id, "Budget Agent skipped: itinerary missing.")
+            self.trip_states[trip_id]["budget"] = {"error": "Itinerary unavailable"}
+            self.trip_states[trip_id]["status"] = "COMPLETED"
+            self.send_final_result(trip_id)
+            return
+
+        original_request = state.get("payload", {})
+        route_points = state.get("route") or []
+
+        start_city = original_request.get("start_city") or (route_points[0].get("city") if route_points else itinerary[0].get("city"))
+        end_city = original_request.get("end_city") or (route_points[-1].get("city") if route_points else itinerary[-1].get("city"))
+        start_date = original_request.get("start_date") or itinerary[0].get("date")
+        end_date = original_request.get("end_date") or itinerary[-1].get("date")
+        adults = original_request.get("adults") or original_request.get("travellers") or 1
+
+        payload = {
+            "start_city": start_city,
+            "end_city": end_city,
+            "origin": start_city,
+            "destination": end_city,
+            "start_date": start_date,
+            "end_date": end_date,
+            "adults": adults,
+            "num_days": original_request.get("num_days")
+        }
+
+        message = {
+            "trip_id": trip_id,
+            "intent": "GenerateBudget",
+            "payload": payload
+        }
+        self.publish_channel.basic_publish(exchange='', routing_key='budget_queue', body=json.dumps(message))
+
     def start_trip_planning(self, trip_id, client_sid, payload):
         """The main workflow for a single trip request."""
-        self.trip_states[trip_id] = {"status": "PENDING", "client_sid": client_sid}
+        self.trip_states[trip_id] = {
+            "status": "PENDING",
+            "client_sid": client_sid,
+            "payload": payload
+        }
         
         start_city = payload.get("start_city")
         end_city = payload.get("end_city")

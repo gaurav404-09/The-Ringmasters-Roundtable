@@ -39,6 +39,7 @@ class EventAgent:
         events = [
             {"title": "Local Music Fest", "date": "Upcoming", "location": f"{city} Central Park", "description": "Enjoy live music from local bands.", "category": "music"},
             {"title": "Artisan Food Market", "date": "This Weekend", "location": f"{city} Town Square", "description": "Taste and buy local delicacies.", "category": "food"},
+            {"title": "Indie Art Showcase", "date": "Next Week", "location": f"{city} Cultural Hall", "description": "Discover emerging visual artists from the region.", "category": "art"},
         ]
         for event in events:
             event['imageUrl'] = self.get_event_image_url(f"{event['title']} {city}")
@@ -64,16 +65,47 @@ class EventAgent:
         try:
             response = self.client.chat(model="command", message=prompt, temperature=0.6)
             json_text = re.search(r'\[.*\]', response.text, re.DOTALL)
-            
+
             if not json_text:
                 print(" [EventAgent] Cohere response did not contain a valid JSON array.")
                 return self.get_fallback_events(city)
 
             parsed_events = json.loads(json_text.group(0))
+            if not isinstance(parsed_events, list):
+                raise ValueError('Parsed events payload is not a list')
+
+            cleaned_events = []
             for event in parsed_events:
-                event['imageUrl'] = self.get_event_image_url(f"{event['title']} {city} {event['category']}")
-            
-            return parsed_events
+                if not isinstance(event, dict):
+                    continue
+                title = event.get('title')
+                if not title:
+                    continue
+                cleaned = {
+                    'title': title,
+                    'date': event.get('date', 'Upcoming'),
+                    'location': event.get('location', city),
+                    'description': event.get('description', ''),
+                    'category': event.get('category', 'festival'),
+                }
+                cleaned['imageUrl'] = self.get_event_image_url(f"{cleaned['title']} {city} {cleaned['category']}")
+                cleaned_events.append(cleaned)
+
+            if len(cleaned_events) < 3:
+                fallback_events = self.get_fallback_events(city)
+                existing_titles = {event['title'].lower() for event in cleaned_events}
+                for fallback in fallback_events:
+                    if fallback['title'].lower() in existing_titles:
+                        continue
+                    cleaned_events.append(fallback)
+                    existing_titles.add(fallback['title'].lower())
+                    if len(cleaned_events) >= 3:
+                        break
+
+            if len(cleaned_events) > 3:
+                cleaned_events = cleaned_events[:3]
+
+            return cleaned_events if cleaned_events else self.get_fallback_events(city)
         except Exception as e:
             print(f" [EventAgent] Cohere API Error: {e}")
             return self.get_fallback_events(city)

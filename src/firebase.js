@@ -5,15 +5,14 @@ import { getAuth } from "firebase/auth";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "AIzaSyCU_-gLuKAdNI5HRdF4K1J1QhqutHgY57c",
-    authDomain: "ringmaster-roundtable.firebaseapp.com",
-    projectId: "ringmaster-roundtable",
-    storageBucket: "ringmaster-roundtable.firebasestorage.app",
-    messagingSenderId: "792758543565",
-    appId: "1:792758543565:web:a5133fe44bbed1ae88b584",
-    measurementId: "G-PQZ7F6LBXH"
-  };
-
+  apiKey: "AIzaSyBLxAbY5HlIE69WuLPi8DIWZNlHXsucJ-4",
+  authDomain: "webster-88d49.firebaseapp.com",
+  projectId: "webster-88d49",
+  storageBucket: "webster-88d49.firebasestorage.app",
+  messagingSenderId: "156431116865",
+  appId: "1:156431116865:web:eebc2e91ff370f29e1f4c0",
+  measurementId: "G-YTVCJZLGLR"
+};
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
