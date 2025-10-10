@@ -9,6 +9,7 @@ import {
   setPostVote,
   setCommentVote,
 } from '../services/communityStore.js';
+import { getSentimentStats } from '../services/sentimentAnalysis.js';
 
 const router = express.Router();
 
@@ -28,13 +29,14 @@ const optionalAuth = async (req, res, next) => {
 
 router.get('/posts', optionalAuth, async (req, res) => {
   try {
-    const { destination, tag, search, limit, after } = req.query;
+    const { destination, tag, search, limit, after, sentiment } = req.query;
     const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 10, 25) : 10;
 
     const posts = await listCommunityPosts({
       destination,
       tag,
       search,
+      sentiment,
       limit: parsedLimit,
       after,
     }, req.user?.uid ?? null);
@@ -179,6 +181,41 @@ router.patch('/comments/:commentId/vote', verifyFirebaseToken, async (req, res) 
     console.error('[PATCH /api/community/comments/:commentId/like] error:', error);
     const status = error.message === 'Comment not found' ? 404 : 500;
     res.status(status).json({ success: false, error: error.message || 'Failed to update vote' });
+  }
+});
+
+// Get sentiment statistics for posts
+router.get('/sentiment/stats', optionalAuth, async (req, res) => {
+  try {
+    const { destination, tag, limit } = req.query;
+    const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 100, 500) : 100;
+
+    const posts = await listCommunityPosts({
+      destination,
+      tag,
+      limit: parsedLimit,
+    }, req.user?.uid ?? null);
+
+    const sentiments = posts
+      .filter(post => post.sentiment && post.sentimentConfidence)
+      .map(post => ({
+        sentiment: post.sentiment,
+        confidence: post.sentimentConfidence
+      }));
+
+    const stats = getSentimentStats(sentiments);
+    
+    res.json({ 
+      success: true, 
+      stats: {
+        ...stats,
+        totalAnalyzed: sentiments.length,
+        totalPosts: posts.length
+      }
+    });
+  } catch (error) {
+    console.error('[GET /api/community/sentiment/stats] error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to fetch sentiment stats' });
   }
 });
 

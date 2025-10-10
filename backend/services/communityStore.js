@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { getFirestoreClient } from './firebaseAdmin.js';
+import { analyzeSentiment } from './sentimentAnalysis.js';
 
 const POSTS_COLLECTION = 'communityPosts';
 const COMMENTS_SUBCOLLECTION = 'comments';
@@ -70,6 +71,8 @@ const buildPostResponse = (doc, viewerId = null) => {
     userVote,
     commentCount: data.commentCount || 0,
     publishToCommunity: data.publishToCommunity !== false,
+    sentiment: data.sentiment || null,
+    sentimentConfidence: data.sentimentConfidence || null,
     createdAt: data.createdAt?.toDate?.().toISOString?.() || data.createdAt || null,
     updatedAt: data.updatedAt?.toDate?.().toISOString?.() || data.updatedAt || null,
   };
@@ -100,6 +103,8 @@ const buildCommentResponse = (doc, viewerId = null) => {
     upvoteCount: upvotes.length,
     downvoteCount: downvotes.length,
     userVote,
+    sentiment: data.sentiment || null,
+    sentimentConfidence: data.sentimentConfidence || null,
     createdAt: data.createdAt?.toDate?.().toISOString?.() || data.createdAt || null,
     updatedAt: data.updatedAt?.toDate?.().toISOString?.() || data.updatedAt || null,
   };
@@ -127,6 +132,9 @@ export const createCommunityPost = async ({
   const tagsArray = normalizeTags(tags);
   const numericRating = Number.isFinite(Number(rating)) ? Number(rating) : null;
 
+  // Analyze sentiment of the post content
+  const sentimentAnalysis = await analyzeSentiment(content.trim());
+
   const postPayload = {
     authorId: uid,
     authorName: authorName || 'Traveler',
@@ -141,6 +149,8 @@ export const createCommunityPost = async ({
     downvoteUserIds: [],
     commentCount: 0,
     publishToCommunity: publishToCommunity !== false,
+    sentiment: sentimentAnalysis.sentiment,
+    sentimentConfidence: sentimentAnalysis.confidence,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -150,17 +160,23 @@ export const createCommunityPost = async ({
   return buildPostResponse(postDoc, uid);
 };
 
-export const listCommunityPosts = async ({ destination, tag, search, limit = 10, after }, viewerId = null) => {
+export const listCommunityPosts = async ({ destination, tag, search, sentiment, limit = 10, after }, viewerId = null) => {
   const firestore = ensureFirestore();
   let query = firestore.collection(POSTS_COLLECTION).orderBy('createdAt', 'desc');
 
   const normalizedDestination = typeof destination === 'string' ? destination.trim() : '';
   const normalizedTag = typeof tag === 'string' ? tag.trim().toLowerCase() : '';
   const normalizedSearch = typeof search === 'string' ? search.trim().toLowerCase() : '';
+  const normalizedSentiment = typeof sentiment === 'string' ? sentiment.trim().toLowerCase() : '';
 
   if (normalizedDestination) {
     query = query.where('destination', '==', normalizedDestination);
   }
+
+  // Filter by sentiment if specified (temporarily disabled until index is created)
+  // if (normalizedSentiment && ['positive', 'negative', 'neutral'].includes(normalizedSentiment)) {
+  //   query = query.where('sentiment', '==', normalizedSentiment);
+  // }
 
   if (after) {
     const afterDoc = await firestore.collection(POSTS_COLLECTION).doc(after).get();
@@ -169,7 +185,7 @@ export const listCommunityPosts = async ({ destination, tag, search, limit = 10,
     }
   }
 
-  const fetchLimit = normalizedTag || normalizedSearch ? Math.min(100, Math.max(limit * 3, 30)) : limit;
+  const fetchLimit = normalizedTag || normalizedSearch || normalizedSentiment ? Math.min(100, Math.max(limit * 3, 30)) : limit;
   const snapshot = await query.limit(fetchLimit).get();
 
   let posts = snapshot.docs
@@ -197,6 +213,11 @@ export const listCommunityPosts = async ({ destination, tag, search, limit = 10,
     posts = posts.filter(
       (post) => (post.destination || '').trim().toLowerCase() === normalizedDestination.toLowerCase()
     );
+  }
+
+  // Client-side sentiment filtering (until Firestore index is created)
+  if (normalizedSentiment && ['positive', 'negative', 'neutral'].includes(normalizedSentiment)) {
+    posts = posts.filter((post) => post.sentiment === normalizedSentiment);
   }
 
   return posts.slice(0, limit);
@@ -293,6 +314,9 @@ export const addCommentToPost = async ({
     path = [...(parentData?.path || []), parentId];
   }
 
+  // Analyze sentiment of the comment content
+  const sentimentAnalysis = await analyzeSentiment(content.trim());
+
   const timestamp = admin.firestore.Timestamp.now();
   const commentPayload = {
     postId,
@@ -304,6 +328,8 @@ export const addCommentToPost = async ({
     authorAvatar: authorAvatar || null,
     upvoteUserIds: [],
     downvoteUserIds: [],
+    sentiment: sentimentAnalysis.sentiment,
+    sentimentConfidence: sentimentAnalysis.confidence,
     createdAt: timestamp,
     updatedAt: timestamp,
   };

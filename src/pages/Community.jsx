@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FaCompass, FaFilter, FaMoon, FaSearch, FaSun } from 'react-icons/fa';
+import { FaCompass, FaFilter, FaMoon, FaSearch, FaSun, FaSmile, FaFrown, FaMeh } from 'react-icons/fa';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import CommunityPostCard from '../components/CommunityPostCard';
 import PostComposer from '../components/PostComposer';
 import CommentThread from '../components/CommentThread';
+import SentimentStats from '../components/SentimentStats';
 import ENV from '../config/env';
 
 const emptyState = {
@@ -21,6 +22,7 @@ const fetchPosts = async (filters) => {
   if (filters.destination) params.set('destination', filters.destination);
   if (filters.tag) params.set('tag', filters.tag);
   if (filters.search) params.set('search', filters.search);
+  if (filters.sentiment) params.set('sentiment', filters.sentiment);
   params.set('limit', String(filters.limit || 10));
 
   const response = await api.get(`/community/posts?${params.toString()}`);
@@ -73,7 +75,7 @@ const Community = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({ destination: '', tag: '', search: '', limit: 12 });
+  const [filters, setFilters] = useState({ destination: '', tag: '', search: '', sentiment: '', limit: 12 });
   const [state, setState] = useState(emptyState);
   const [showComposer, setShowComposer] = useState(false);
   const [composerPrefill, setComposerPrefill] = useState({ source: '', destination: '' });
@@ -138,7 +140,7 @@ const Community = () => {
   useEffect(() => {
     loadPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.destination, filters.tag, filters.search]);
+  }, [filters.destination, filters.tag, filters.search, filters.sentiment]);
 
   const openPost = async (post) => {
     try {
@@ -394,6 +396,33 @@ const Community = () => {
               </div>
             </div>
 
+            {/* Sentiment Filter Buttons */}
+            <div className="flex flex-wrap justify-center gap-3 pt-2">
+              {[
+                { key: '', label: 'All Posts', icon: FaFilter },
+                { key: 'positive', label: 'Positive', icon: FaSmile },
+                { key: 'negative', label: 'Negative', icon: FaFrown },
+                { key: 'neutral', label: 'Neutral', icon: FaMeh }
+              ].map(({ key, label, icon: Icon }) => {
+                const active = filters.sentiment === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() =>
+                      setFilters((prev) => ({ ...prev, sentiment: key, search: '' }))
+                    }
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition ${
+                      active
+                        ? 'border-cyan-500 bg-cyan-500/10 text-cyan-600 shadow-[0_16px_38px_rgba(56,189,248,0.28)]'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-cyan-400 hover:text-cyan-500 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300'
+                    }`}
+                  >
+                    <Icon className="text-[0.65rem]" /> {label}
+                  </button>
+                );
+              })}
+            </div>
+
             {filteredTags.length > 0 && (
               <div className="flex flex-wrap justify-center gap-3 pt-2">
                 {filteredTags.map((tag) => {
@@ -418,41 +447,52 @@ const Community = () => {
             )}
           </header>
 
-          <section className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {state.loading && (
-              <div className="col-span-full flex justify-center">
-                <div className="h-12 w-12 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-              </div>
-            )}
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-4">
+            {/* Sentiment Stats Sidebar */}
+            <div className="relative z-20 lg:col-span-1 lg:pr-6">
+              <SentimentStats 
+                destination={filters.destination} 
+                tag={filters.tag}
+              />
+            </div>
 
-            {!state.loading && state.posts.length === 0 && (
-              <div className="col-span-full rounded-3xl border border-dashed border-cyan-200 bg-white/70 px-10 py-12 text-center text-sm font-semibold text-slate-400 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
-                No stories yet. Be the first voyager to share your experience!
-              </div>
-            )}
+            {/* Posts Grid */}
+            <section className="relative z-10 grid grid-cols-1 gap-10 md:grid-cols-2 lg:col-span-3 lg:grid-cols-2 lg:pl-8">
+              {state.loading && (
+                <div className="col-span-full flex justify-center">
+                  <div className="h-12 w-12 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                </div>
+              )}
 
-            {state.posts.map((post) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <CommunityPostCard
-                  post={post}
-                  userVote={post.userVote || null}
-                  onOpen={() => openPost(post)}
-                  onVote={(direction) => {
-                    if (!user) {
-                      toast.error('Sign in to rate this story!');
-                      return;
-                    }
-                    handleVotePost(post.id, direction);
-                  }}
-                />
-              </motion.div>
-            ))}
-          </section>
+              {!state.loading && state.posts.length === 0 && (
+                <div className="col-span-full rounded-3xl border border-dashed border-cyan-200 bg-white/70 px-10 py-12 text-center text-sm font-semibold text-slate-400 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+                  No stories yet. Be the first voyager to share your experience!
+                </div>
+              )}
+
+              {state.posts.map((post) => (
+                <motion.div
+                  key={post.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                >
+                  <CommunityPostCard
+                    post={post}
+                    userVote={post.userVote || null}
+                    onOpen={() => openPost(post)}
+                    onVote={(direction) => {
+                      if (!user) {
+                        toast.error('Sign in to rate this story!');
+                        return;
+                      }
+                      handleVotePost(post.id, direction);
+                    }}
+                  />
+                </motion.div>
+              ))}
+            </section>
+          </div>
         </div>
 
         {activePost && (
