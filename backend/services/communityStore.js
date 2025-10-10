@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { getFirestoreClient } from './firebaseAdmin.js';
+import { analyzeSentiment } from './sentimentAnalysis.js';
 
 const POSTS_COLLECTION = 'communityPosts';
 const COMMENTS_SUBCOLLECTION = 'comments';
@@ -59,7 +60,7 @@ const buildPostResponse = (doc, viewerId = null) => {
     content: data.content,
     source: data.source || null,
     destination: data.destination || null,
-    tags: data.tags || [],
+    tags: normalizeTags(data.tags),
     media: data.media || [],
     rating: typeof data.rating === 'number' ? data.rating : null,
     authorId: data.authorId,
@@ -70,6 +71,8 @@ const buildPostResponse = (doc, viewerId = null) => {
     userVote,
     commentCount: data.commentCount || 0,
     publishToCommunity: data.publishToCommunity !== false,
+    sentiment: data.sentiment || null,
+    sentimentConfidence: data.sentimentConfidence || null,
     createdAt: data.createdAt?.toDate?.().toISOString?.() || data.createdAt || null,
     updatedAt: data.updatedAt?.toDate?.().toISOString?.() || data.updatedAt || null,
   };
@@ -100,6 +103,8 @@ const buildCommentResponse = (doc, viewerId = null) => {
     upvoteCount: upvotes.length,
     downvoteCount: downvotes.length,
     userVote,
+    sentiment: data.sentiment || null,
+    sentimentConfidence: data.sentimentConfidence || null,
     createdAt: data.createdAt?.toDate?.().toISOString?.() || data.createdAt || null,
     updatedAt: data.updatedAt?.toDate?.().toISOString?.() || data.updatedAt || null,
   };
@@ -127,6 +132,9 @@ export const createCommunityPost = async ({
   const tagsArray = normalizeTags(tags);
   const numericRating = Number.isFinite(Number(rating)) ? Number(rating) : null;
 
+  // Analyze sentiment of the post content
+  const sentimentAnalysis = await analyzeSentiment(content.trim());
+
   const postPayload = {
     authorId: uid,
     authorName: authorName || 'Traveler',
@@ -141,6 +149,8 @@ export const createCommunityPost = async ({
     downvoteUserIds: [],
     commentCount: 0,
     publishToCommunity: publishToCommunity !== false,
+    sentiment: sentimentAnalysis.sentiment,
+    sentimentConfidence: sentimentAnalysis.confidence,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -150,33 +160,22 @@ export const createCommunityPost = async ({
   return buildPostResponse(postDoc, uid);
 };
 
-export const listCommunityPosts = async ({ destination, tag, search, limit = 10, after }, viewerId = null) => {
+export const listCommunityPosts = async ({ destination, source, tag, search, sentiment, limit = 10, after }, viewerId = null) => {
   const firestore = ensureFirestore();
   let query = firestore.collection(POSTS_COLLECTION).orderBy('createdAt', 'desc');
 
-  if (destination) {
-    query = query.where('destination', '==', destination.trim());
-  }
+  const normalizedDestination = typeof destination === 'string' ? destination.trim() : '';
+  const normalizedSource = typeof source === 'string' ? source.trim() : '';
+  const normalizedTag = typeof tag === 'string' ? tag.trim().toLowerCase() : '';
+  const normalizedSearch = typeof search === 'string' ? search.trim().toLowerCase() : '';
+  const normalizedSentiment = typeof sentiment === 'string' ? sentiment.trim().toLowerCase() : '';
 
-  if (tag) {
-    query = query.where('tags', 'array-contains', tag.toLowerCase().trim());
-  }
+  // Destination filtering is applied client-side to avoid requiring composite indexes
 
-  if (search) {
-    // Simple search: filter client-side after fetch because Firestore does not support OR contains
-    const snapshot = await query.limit(limit).get();
-    const posts = snapshot.docs
-      .map((doc) => buildPostResponse(doc, viewerId))
-      .filter(
-        (post) =>
-          post &&
-          post.publishToCommunity !== false &&
-          ((post.title && post.title.toLowerCase().includes(search.toLowerCase())) ||
-            (post.content && post.content.toLowerCase().includes(search.toLowerCase())) ||
-            (post.tags || []).some((t) => t.includes(search.toLowerCase())))
-      );
-    return posts;
-  }
+  // Filter by sentiment if specified (temporarily disabled until index is created)
+  // if (normalizedSentiment && ['positive', 'negative', 'neutral'].includes(normalizedSentiment)) {
+  //   query = query.where('sentiment', '==', normalizedSentiment);
+  // }
 
   if (after) {
     const afterDoc = await firestore.collection(POSTS_COLLECTION).doc(after).get();
@@ -185,10 +184,50 @@ export const listCommunityPosts = async ({ destination, tag, search, limit = 10,
     }
   }
 
-  const snapshot = await query.limit(limit).get();
-  return snapshot.docs
+  const fetchLimit = normalizedTag || normalizedSearch || normalizedSentiment || normalizedSource || normalizedDestination
+    ? Math.min(100, Math.max(limit * 3, 30))
+    : limit;
+  const snapshot = await query.limit(fetchLimit).get();
+
+  let posts = snapshot.docs
     .map((doc) => buildPostResponse(doc, viewerId))
     .filter((post) => post && post.publishToCommunity !== false);
+
+  if (normalizedSource) {
+    posts = posts.filter(
+      (post) => (post.source || '').trim().toLowerCase() === normalizedSource.toLowerCase()
+    );
+  }
+
+  if (normalizedTag) {
+    posts = posts.filter((post) =>
+      Array.isArray(post.tags) && post.tags.some((tagValue) => tagValue === normalizedTag)
+    );
+  }
+
+  if (normalizedSearch) {
+    posts = posts.filter((post) => {
+      const haystack = `${post.title || ''} ${post.content || ''}`.toLowerCase();
+      const matchesText = haystack.includes(normalizedSearch);
+      const matchesTags = Array.isArray(post.tags)
+        ? post.tags.some((tagValue) => tagValue.includes(normalizedSearch))
+        : false;
+      return matchesText || matchesTags;
+    });
+  }
+
+  if (normalizedDestination) {
+    posts = posts.filter(
+      (post) => (post.destination || '').trim().toLowerCase() === normalizedDestination.toLowerCase()
+    );
+  }
+
+  // Client-side sentiment filtering (until Firestore index is created)
+  if (normalizedSentiment && ['positive', 'negative', 'neutral'].includes(normalizedSentiment)) {
+    posts = posts.filter((post) => post.sentiment === normalizedSentiment);
+  }
+
+  return posts.slice(0, limit);
 };
 
 export const getCommunityPost = async (postId, viewerId = null) => {
@@ -282,6 +321,9 @@ export const addCommentToPost = async ({
     path = [...(parentData?.path || []), parentId];
   }
 
+  // Analyze sentiment of the comment content
+  const sentimentAnalysis = await analyzeSentiment(content.trim());
+
   const timestamp = admin.firestore.Timestamp.now();
   const commentPayload = {
     postId,
@@ -293,6 +335,8 @@ export const addCommentToPost = async ({
     authorAvatar: authorAvatar || null,
     upvoteUserIds: [],
     downvoteUserIds: [],
+    sentiment: sentimentAnalysis.sentiment,
+    sentimentConfidence: sentimentAnalysis.confidence,
     createdAt: timestamp,
     updatedAt: timestamp,
   };

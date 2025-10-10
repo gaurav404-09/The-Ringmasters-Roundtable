@@ -25,6 +25,7 @@ import requestLogger from './middleware/requestLogger.js';
 import { getFlights, getHotels } from './services/amadeus.js';
 import { getTrains } from './services/trains.js';
 import { findCheapestTrip } from './services/optimizer.js';
+import crystalBallRoutes from './routes/crystalBallRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,6 +102,7 @@ app.use('/api', directionsRoutes);
 app.use('/api', itineraryRoutes);
 app.use('/api', compareRoutes);
 app.use('/api', nearbyRoutes);
+app.use('/api', crystalBallRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/opportunities', opportunityRoutes);
 if (hasClientBuild) {

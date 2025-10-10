@@ -52,6 +52,84 @@ const Budget = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
 
+  // City code mapping for common cities (case-insensitive)
+  const cityCodeMap = {
+    'delhi': 'DEL',
+    'mumbai': 'BOM',
+    'bombay': 'BOM',
+    'bangalore': 'BLR',
+    'bengaluru': 'BLR',
+    'chennai': 'MAA',
+    'kolkata': 'CCU',
+    'calcutta': 'CCU',
+    'hyderabad': 'HYD',
+    'pune': 'PNQ',
+    'ahmedabad': 'AMD',
+    'goa': 'GOI',
+    'kochi': 'COK',
+    'cochin': 'COK',
+    'jaipur': 'JAI',
+    'lucknow': 'LKO',
+    'patna': 'PAT',
+    'guwahati': 'GAU',
+    'chandigarh': 'IXC',
+    'amritsar': 'ATQ',
+    'varanasi': 'VNS',
+    'indore': 'IDR',
+    'bhopal': 'BHO',
+    'raipur': 'RPR',
+    'nagpur': 'NAG',
+    'vadodara': 'BDQ',
+    'surat': 'STV',
+    'rajkot': 'RAJ',
+    'bhubaneswar': 'BBI',
+    'visakhapatnam': 'VTZ',
+    'coimbatore': 'CJB',
+    'kozhikode': 'CCJ',
+    'mangalore': 'IXE',
+    'srinagar': 'SXR',
+    'jammu': 'IXJ',
+    'leh': 'IXL',
+    'shimla': 'SLV',
+    'manali': 'KUU',
+    'dharamshala': 'DHM',
+    'dehradun': 'DED',
+    'udaipur': 'UDR',
+    'jodhpur': 'JDH',
+    'jaisalmer': 'JSA',
+    'jabalpur': 'JLR',
+    'gwalior': 'GWL',
+    'bikaner': 'BKB'
+  };
+
+  // Convert input to IATA code
+  const getCityCode = (place) => {
+    if (!place) return '';
+    const str = place.toString().trim();
+    const upper = str.toUpperCase();
+    
+    // If it's already a 3-letter IATA code, use it directly
+    if (/^[A-Z]{3}$/.test(upper)) return upper;
+    
+    // Otherwise map known city names (case-insensitive)
+    const lower = str.toLowerCase();
+    return cityCodeMap[lower] || upper;
+  };
+
+  // Handle origin change
+  const handleOriginChange = (value) => {
+    setOrigin(value);
+    const iataCode = getCityCode(value);
+    setOriginIata(iataCode);
+  };
+
+  // Handle destination change
+  const handleDestinationChange = (value) => {
+    setDestination(value);
+    const iataCode = getCityCode(value);
+    setDestinationIata(iataCode);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!origin || !destination || !departureDate || !checkIn || !checkOut) {
@@ -81,8 +159,8 @@ const Budget = () => {
 
       const response = await api.get("/travel", {
         params: {
-          origin: originIata,
-          destination: destinationIata,
+          origin: finalOriginIata,
+          destination: finalDestinationIata,
           date: departureDate,
           checkInDate: checkIn,
           checkOutDate: checkOut,

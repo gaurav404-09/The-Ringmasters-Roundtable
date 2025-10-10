@@ -30,7 +30,7 @@ async function buildAuthHeaders(requireAuth = true) {
     throw error;
   }
 
-  const token = await user.getIdToken();
+  const token = await user.getIdToken(true); // Force refresh token
   return {
     ...baseHeaders,
     Authorization: `Bearer ${token}`,

@@ -9,20 +9,40 @@ import {
   FaUserCircle,
   FaSignInAlt,
   FaSignOutAlt,
+  FaChevronDown,
 } from 'react-icons/fa';
+import { GiCrystalBall } from 'react-icons/gi';
 import { WiDaySunny } from 'react-icons/wi';
 import { useAuth } from '../context/AuthContext';
 
-const BASE_NAV_ITEMS = [
-  { name: 'Home', path: '/', icon: WiDaySunny },
-  { name: 'Weather', path: '/weather', icon: WiDaySunny },
-  { name: 'Routes', path: '/routes', icon: FaRoute },
-  { name: 'Budget', path: '/budget', icon: FaMoneyBillWave },
-  { name: 'Events', path: '/events', icon: FaCalendarAlt },
-  { name: 'Compare', path: '/compare', icon: FaBalanceScale },
-  { name: 'Dashboard', path: '/dashboard', icon: FaClipboardList },
-  { name: 'Itinerary', path: '/itinerary', icon: FaClipboardList },
-  { name: 'Community', path: '/community', icon: FaUserCircle },
+const NAV_STRUCTURE = [
+  { key: 'home', type: 'link', name: 'Home', path: '/', icon: WiDaySunny },
+  {
+    key: 'agents',
+    type: 'dropdown',
+    name: 'Agents',
+    icon: FaCalendarAlt,
+    items: [
+      { key: 'events', name: 'Events', path: '/events', icon: FaCalendarAlt },
+      { key: 'itinerary', name: 'Itinerary', path: '/itinerary', icon: FaClipboardList },
+      { key: 'weather', name: 'Weather', path: '/weather', icon: WiDaySunny },
+      { key: 'routes', name: 'Routes', path: '/routes', icon: FaRoute },
+    ],
+  },
+  {
+    key: 'features',
+    type: 'dropdown',
+    name: 'Features',
+    icon: FaBalanceScale,
+    items: [
+      { key: 'compare', name: 'Compare', path: '/compare', icon: FaBalanceScale },
+      { key: 'budget', name: 'Budget', path: '/budget', icon: FaMoneyBillWave },
+      { key: 'crystal', name: 'Crystal Ball', path: '/crystal-ball', icon: GiCrystalBall },
+    ],
+  },
+  { key: 'plan', type: 'cta', name: 'Plan Trip', path: '/planner', icon: FaRoute },
+  { key: 'community', type: 'link', name: 'Community', path: '/community', icon: FaUserCircle },
+  { key: 'dashboard', type: 'link', name: 'Dashboard', path: '/dashboard', icon: FaClipboardList },
 ];
 
 const Navbar = () => {
@@ -32,15 +52,12 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = useMemo(() => {
-    const items = [
-      ...BASE_NAV_ITEMS,
-      { name: 'Plan Trip', path: '/planner', icon: FaRoute, type: 'link' },
-    ];
+    const items = [...NAV_STRUCTURE];
 
     if (user) {
-      items.push({ name: 'Logout', action: 'logout', icon: FaSignOutAlt, type: 'action' });
+      items.push({ key: 'logout', type: 'action', name: 'Logout', icon: FaSignOutAlt, action: 'logout' });
     } else {
-      items.push({ name: 'Login · Sign Up', path: '/auth', icon: FaSignInAlt, type: 'link' });
+      items.push({ key: 'auth', type: 'link', name: 'Login / Sign Up', path: '/auth', icon: FaSignInAlt });
     }
 
     return items;
@@ -53,8 +70,10 @@ const Navbar = () => {
   const activeNavClasses = 'text-white border-white';
   const inactiveNavClasses = 'text-slate-300 hover:text-white hover:border-white/40';
 
-  const navLinkClass = (path) =>
-    `${baseNavLinkClasses} ${path ? (isActive(path) ? activeNavClasses : inactiveNavClasses) : inactiveNavClasses}`;
+  const navButtonClass = (active = false) =>
+    `${baseNavLinkClasses} ${active ? activeNavClasses : inactiveNavClasses}`;
+
+  const isDropdownActive = (items) => items?.some((item) => isActive(item.path));
 
   const closeMobileMenu = () => setMobileOpen(false);
 
@@ -69,31 +88,78 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-slate-800/70 text-white shadow-[0_14px_40px_rgba(15,23,42,0.5)] backdrop-blur-xl overflow-hidden">
+    <nav className="sticky top-0 z-50 border-b border-slate-800/70 text-white shadow-[0_14px_40px_rgba(15,23,42,0.5)] backdrop-blur-xl overflow-visible">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-900/90 to-slate-950/95" aria-hidden="true" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" aria-hidden="true" />
       <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6 lg:px-12 relative">
         {/* Desktop Navigation */}
-        <div className="hidden lg:flex items-center gap-6">
-          {navItems.map(({ name, path, icon: Icon, action, type }) => {
-            if (type === 'action' && action === 'logout') {
+        <div className="hidden lg:flex items-center gap-4">
+          {navItems.map((item) => {
+            if (item.type === 'action') {
               return (
-                <button key="logout" onClick={handleLogout} className={navLinkClass()}>
-                  <Icon className="text-base" />
-                  <span>{name}</span>
+                <button key={item.key} onClick={handleLogout} className={navButtonClass()}>
+                  <item.icon className="text-base" />
+                  <span>{item.name}</span>
                 </button>
+              );
+            }
+
+            if (item.type === 'cta') {
+              return (
+                <Link
+                  key={item.key}
+                  to={item.path}
+                  onClick={closeMobileMenu}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 px-4 py-2 text-sm font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_40px_rgba(56,189,248,0.35)] transition hover:scale-[1.03]"
+                >
+                  <item.icon className="text-base" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            }
+
+            if (item.type === 'dropdown') {
+              const dropdownActive = isDropdownActive(item.items);
+              return (
+                <div key={item.key} className="relative group">
+                  <button
+                    type="button"
+                    className={`${navButtonClass(dropdownActive)} inline-flex items-center gap-2`}
+                  >
+                    <item.icon className="text-base" />
+                    <span>{item.name}</span>
+                    <FaChevronDown className={`text-xs transition ${dropdownActive ? 'text-cyan-300 rotate-0' : ''} group-hover:-rotate-180`} />
+                  </button>
+                  <div className="invisible absolute left-0 top-full z-[100] mt-2 w-52 translate-y-2 rounded-2xl border border-white/10 bg-slate-900/95 p-2 opacity-0 shadow-[0_18px_42px_rgba(2,6,23,0.6)] backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                    {item.items.map((subItem) => (
+                      <Link
+                        key={subItem.key}
+                        to={subItem.path}
+                        onClick={closeMobileMenu}
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                          isActive(subItem.path)
+                            ? 'bg-cyan-500/10 text-cyan-300'
+                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <subItem.icon className="text-base" />
+                        <span>{subItem.name}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               );
             }
 
             return (
               <Link
-                key={path}
-                to={path}
+                key={item.key}
+                to={item.path}
                 onClick={closeMobileMenu}
-                className={navLinkClass(path)}
+                className={navButtonClass(isActive(item.path))}
               >
-                <Icon className="text-base" />
-                <span>{name}</span>
+                <item.icon className="text-base" />
+                <span>{item.name}</span>
               </Link>
             );
           })}
@@ -139,25 +205,68 @@ const Navbar = () => {
         <div id="mobile-menu" className="lg:hidden border-t border-slate-800/70 bg-slate-900/95 backdrop-blur-xl">
           <div className="space-y-4 px-4 py-6">
             <div className="flex flex-col gap-2">
-              {navItems.map(({ name, path, icon: Icon, action, type }) => {
-                if (type === 'action' && action === 'logout') {
+              {navItems.map((item) => {
+                if (item.type === 'action') {
                   return (
-                    <button key="logout" onClick={handleLogout} className={`${navLinkClass()} justify-center`}>
-                      <Icon className="text-base" />
-                      <span>{name}</span>
+                    <button key={item.key} onClick={handleLogout} className={`${navButtonClass()} justify-between`}>
+                      <item.icon className="text-base" />
+                      <span>{item.name}</span>
                     </button>
+                  );
+                }
+
+                if (item.type === 'cta') {
+                  return (
+                    <Link
+                      key={item.key}
+                      to={item.path}
+                      onClick={closeMobileMenu}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 px-4 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_40px_rgba(56,189,248,0.35)]"
+                    >
+                      <item.icon className="text-base" />
+                      <span>{item.name}</span>
+                    </Link>
+                  );
+                }
+
+                if (item.type === 'dropdown') {
+                  const dropdownActive = isDropdownActive(item.items);
+                  return (
+                    <div key={item.key} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                        <item.icon className="text-sm" />
+                        <span className={dropdownActive ? 'text-cyan-300' : undefined}>{item.name}</span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {item.items.map((subItem) => (
+                          <Link
+                            key={subItem.key}
+                            to={subItem.path}
+                            onClick={closeMobileMenu}
+                            className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                              isActive(subItem.path)
+                                ? 'bg-cyan-500/10 text-cyan-300'
+                                : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            <subItem.icon className="text-base" />
+                            <span>{subItem.name}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
                   );
                 }
 
                 return (
                   <Link
-                    key={path}
-                    to={path}
+                    key={item.key}
+                    to={item.path}
                     onClick={closeMobileMenu}
-                    className={`${navLinkClass(path)} justify-center`}
+                    className={`${navButtonClass(isActive(item.path))} justify-between`}
                   >
-                    <Icon className="text-base" />
-                    <span>{name}</span>
+                    <item.icon className="text-base" />
+                    <span>{item.name}</span>
                   </Link>
                 );
               })}

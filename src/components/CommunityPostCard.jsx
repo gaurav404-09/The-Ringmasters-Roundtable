@@ -1,11 +1,32 @@
 import { memo } from 'react';
-import { FaArrowDown, FaArrowUp, FaCommentDots } from 'react-icons/fa';
+import { FaArrowDown, FaArrowUp, FaCommentDots, FaSmile, FaFrown, FaMeh } from 'react-icons/fa';
 
 const badgeColors = {
   beach: 'bg-cyan-100 text-cyan-700 border-cyan-200',
   adventure: 'bg-amber-100 text-amber-700 border-amber-200',
   culture: 'bg-rose-100 text-rose-700 border-rose-200',
   default: 'bg-slate-100 text-slate-700 border-slate-200',
+};
+
+const sentimentConfig = {
+  positive: {
+    icon: FaSmile,
+    color: 'text-green-500',
+    bgColor: 'bg-green-100',
+    label: 'Positive'
+  },
+  negative: {
+    icon: FaFrown,
+    color: 'text-red-500',
+    bgColor: 'bg-red-100',
+    label: 'Negative'
+  },
+  neutral: {
+    icon: FaMeh,
+    color: 'text-gray-500',
+    bgColor: 'bg-gray-100',
+    label: 'Neutral'
+  }
 };
 
 const CommunityPostCard = ({
@@ -24,6 +45,24 @@ const CommunityPostCard = ({
       >
         #{tag}
       </span>
+    );
+  };
+
+  const renderSentiment = () => {
+    if (!post.sentiment || !post.sentimentConfidence) return null;
+    
+    const config = sentimentConfig[post.sentiment];
+    if (!config) return null;
+    
+    const IconComponent = config.icon;
+    const confidencePercentage = Math.round(post.sentimentConfidence * 100);
+    
+    return (
+      <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${config.bgColor} ${config.color} border-current/20`}>
+        <IconComponent className="text-sm" />
+        <span>{config.label}</span>
+        <span className="text-xs opacity-75">({confidencePercentage}%)</span>
+      </div>
     );
   };
 
@@ -48,11 +87,14 @@ const CommunityPostCard = ({
           {post.content}
         </p>
 
-        {typeof post.rating === 'number' && (
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/60 bg-amber-100/50 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-amber-600">
-            Rating: {post.rating.toFixed(1)} / 5
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {typeof post.rating === 'number' && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/60 bg-amber-100/50 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-amber-600">
+              Rating: {post.rating.toFixed(1)} / 5
+            </div>
+          )}
+          {renderSentiment()}
+        </div>
       </div>
 
       {post.tags?.length > 0 && (
