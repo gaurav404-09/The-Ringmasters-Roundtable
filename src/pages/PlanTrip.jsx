@@ -61,6 +61,19 @@ const addDays = (date, amount) => {
   return copy;
 };
 
+const parseISODate = (isoString) => {
+  if (!isoString) {
+    return null;
+  }
+
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
 const calculateDaySpan = (startIso, endIso) => {
   if (!startIso || !endIso) return 1;
   const start = new Date(startIso);
@@ -270,11 +283,11 @@ const PlanTrip = () => {
 
   const [from, setFrom] = useState('Delhi');
   const [to, setTo] = useState('Goa');
-  const todayIso = useMemo(() => toDateInputValue(new Date()), []);
-  const defaultEndIso = useMemo(() => toDateInputValue(addDays(new Date(), 4)), []);
-  const [startDate, setStartDate] = useState(todayIso);
-  const [endDate, setEndDate] = useState(defaultEndIso);
-  const [days, setDays] = useState(() => calculateDaySpan(todayIso, defaultEndIso));
+  const initialStart = useMemo(() => toDateInputValue(addDays(new Date(), -1)), []);
+  const initialEnd = useMemo(() => toDateInputValue(addDays(new Date(), 3)), []);
+  const [startDate, setStartDate] = useState(initialStart);
+  const [endDate, setEndDate] = useState(initialEnd);
+  const [days, setDays] = useState(() => calculateDaySpan(initialStart, initialEnd));
   const [socket, setSocket] = useState(null);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -495,7 +508,6 @@ const PlanTrip = () => {
                         id="start-date"
                         type="date"
                         value={startDate}
-                        min={todayIso}
                         onChange={(event) => {
                           const value = event.target.value;
                           setStartDate(value);
@@ -513,7 +525,6 @@ const PlanTrip = () => {
                         id="end-date"
                         type="date"
                         value={endDate}
-                        min={startDate || todayIso}
                         onChange={(event) => setEndDate(event.target.value)}
                         className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-white shadow-[0_10px_25px_rgba(15,23,42,0.45)] outline-none transition focus:border-emerald-400/60 focus:bg-white/10"
                         required
