@@ -17,8 +17,15 @@ import NearbyAttractions from '../components/NearbyAttractions.jsx';
 
 const quickActions = [
   {
+    title: 'Crystal Ball',
+    description: 'Let the mystical orb reveal your perfect destination based on your travel desires.',
+    to: '/crystal-ball',
+    chip: 'Magical',
+    Icon: Sparkles,
+  },
+  {
     title: 'Launch the trip planner',
-    description: 'Hand the brief to the orchestrator and watch itineraries stream in with live agent updates.',
+    description: 'Hand the brief to the Orchestrator and watch itineraries stream in with live agent updates.',
     to: '/planner',
     chip: 'Multi-agent',
     Icon: Navigation,
@@ -196,8 +203,33 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {quickActions.map(({ title, description, to, chip, Icon }) => (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {quickActions.slice(0, 3).map(({ title, description, to, chip, Icon }) => (
+                <Link
+                  key={title}
+                  to={to}
+                  className="group relative flex h-full flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-6 text-left shadow-[0_20px_45px_rgba(15,23,42,0.35)] backdrop-blur transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/70">
+                      {chip}
+                    </span>
+                    <Icon className="h-5 w-5 text-cyan-200" />
+                  </div>
+                  <div className="mt-6 space-y-3">
+                    <h3 className="text-lg font-semibold text-white">{title}</h3>
+                    <p className="text-sm text-white/70">{description}</p>
+                  </div>
+                  <div className="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+                    Explore
+                    <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-1 group-hover:text-white" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+            
+            <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto">
+              {quickActions.slice(3).map(({ title, description, to, chip, Icon }) => (
                 <Link
                   key={title}
                   to={to}

@@ -317,6 +317,14 @@ const Itinerary = () => {
               {displayItinerary.travelDates} • {displayItinerary.duration} • {displayItinerary.travelers}{' '}
               {displayItinerary.travelers > 1 ? 'Travelers' : 'Traveler'}
             </p>
+            {displayItinerary.aiGenerated && displayItinerary.interests && displayItinerary.interests.length > 0 && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-gradient-to-r from-purple-500/10 to-pink-500/10 px-4 py-2 text-sm">
+                <span className="text-lg">🤖</span>
+                <span className="text-purple-200 font-medium">
+                  AI-Personalized for: {displayItinerary.interests.join(', ')}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
             <button
@@ -408,6 +416,11 @@ const Itinerary = () => {
                             <div className="flex items-center">
                               <h3 className="font-medium text-white">{activity.title}</h3>
                               {getStatusBadge(activity.status)}
+                              {activity.interest_category && (
+                                <span className="ml-2 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-200 border border-purple-400/30">
+                                  🤖 {activity.interest_category}
+                                </span>
+                              )}
                             </div>
                             {activity.location && (
                               <div className="flex items-center text-sm text-white/60 mt-1">
