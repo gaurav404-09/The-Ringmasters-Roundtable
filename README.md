@@ -12,6 +12,7 @@ An AI-powered travel planning platform that orchestrates your perfect journey. B
 - 🎉 **Local Events Discovery** - AI-curated events at your destination
 - 🏨 **Accommodation Finder** - OSM-powered hotel and guest house recommendations
 - 🍽️ **Restaurant Suggestions** - Local cuisine recommendations with price levels
+- 🔮 **Crystal Ball** - AI-powered trip comparison and recommendation engine that analyzes multiple destinations
 
 ### AI & Automation
 - 🤖 **Pip Digital Agent** - Proactive travel assistant that monitors your trips and surfaces opportunities
@@ -240,6 +241,7 @@ The-Ringmasters-Roundtable/
 │   │   ├── PlanTrip.jsx          # Trip planning interface
 │   │   ├── Itinerary.jsx         # Itinerary viewer
 │   │   ├── Budget.jsx            # Budget breakdown
+│   │   ├── Compare.jsx           # Crystal Ball comparison
 │   │   └── ...
 │   ├── context/                  # React context providers
 │   │   ├── AuthContext.jsx       # Firebase auth state
@@ -359,6 +361,16 @@ Each day includes:
 - **Morning, Afternoon, Evening** sightseeing activities
 - **Duration, Price, Status** badges (confirmed/recommended/optional)
 - **Includes** lists (e.g., "Room keys, Welcome amenities")
+
+### 🔮 Crystal Ball Feature
+The Crystal Ball is an intelligent trip comparison tool that:
+- **Analyzes multiple destinations** simultaneously (e.g., "Goa vs Manali vs Udaipur")
+- **Compares weather conditions** across all destinations for your travel dates
+- **Evaluates budget** - shows cheapest vs most expensive options
+- **Highlights unique experiences** - what makes each destination special
+- **AI-powered recommendations** - suggests the best destination based on your preferences
+- **Side-by-side comparison** - visual cards showing key metrics for each location
+- **Smart insights** - "Best for beach lovers", "Budget-friendly option", "Adventure seeker's paradise"
 
 ## 🐛 Troubleshooting
 
