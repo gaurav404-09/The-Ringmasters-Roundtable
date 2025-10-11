@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -88,6 +88,10 @@ const Community = () => {
   const [submitting, setSubmitting] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
   const commentInputRef = useRef(null);
+  const [sentimentRevision, setSentimentRevision] = useState(0);
+  const bumpSentimentRevision = useCallback(() => {
+    setSentimentRevision((prev) => prev + 1);
+  }, []);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('community-theme') === 'dark';
@@ -175,6 +179,7 @@ const Community = () => {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       const posts = await fetchPosts(filters);
       setState({ posts, loading: false, error: null });
+      bumpSentimentRevision();
     } catch (error) {
       console.error('Failed to fetch posts', error);
       setState({ posts: [], loading: false, error: error.message || 'Failed to fetch posts' });
@@ -214,6 +219,7 @@ const Community = () => {
       if (activePostDetails?.post?.id === postId) {
         setActivePostDetails((prev) => ({ ...prev, post: updated }));
       }
+      bumpSentimentRevision();
     } catch (error) {
       console.error('Failed to update post vote', error);
       toast.error('Could not update vote.');
@@ -355,6 +361,7 @@ const Community = () => {
         ...prev,
         posts: [post, ...prev.posts],
       }));
+      bumpSentimentRevision();
       toast.success('Your story is now live!');
       return true;
     } catch (error) {
@@ -523,6 +530,7 @@ const Community = () => {
                 source={filters.source}
                 destination={filters.destination} 
                 tag={filters.tag}
+                revisionKey={sentimentRevision}
               />
             </div>
 

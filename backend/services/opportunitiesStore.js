@@ -137,7 +137,13 @@ export const createOpportunityIfNotExists = async (opportunity, fingerprint) => 
 
 // In-memory cache to reduce Firestore reads
 const opportunitiesCache = new Map();
-const CACHE_TTL_MS = 30000; // 30 seconds cache
+const CACHE_TTL_MS = parseInt(process.env.OPPORTUNITIES_CACHE_TTL_MS || '60000', 10); // 60 seconds cache (increased from 30s to reduce quota usage)
+const MAX_OPPORTUNITIES_PER_USER = parseInt(process.env.MAX_OPPORTUNITIES_PER_USER || '50', 10); // Limit to prevent excessive reads
+
+// NOTE: Firestore composite index required for this query:
+// Collection: opportunities
+// Fields: userId (Ascending), status (Ascending), createdAt (Descending)
+// Create at: https://console.firebase.google.com/project/_/firestore/indexes
 
 export const getNewOpportunitiesForUser = async (userId) => {
   if (!userId) {
@@ -157,9 +163,14 @@ export const getNewOpportunitiesForUser = async (userId) => {
   
   if (firestore) {
     const collectionRef = firestore.collection(COLLECTION_NAME);
-    const snapshot = await collectionRef.where('userId', '==', userId).where('status', '==', DEFAULT_STATUS).get();
+    const snapshot = await collectionRef
+      .where('userId', '==', userId)
+      .where('status', '==', DEFAULT_STATUS)
+      .orderBy('createdAt', 'desc')
+      .limit(MAX_OPPORTUNITIES_PER_USER)
+      .get();
     result = snapshot.docs.map((doc) => doc.data());
-    console.log('[getNewOpportunitiesForUser] Fetched from Firestore:', result.length, 'opportunities');
+    console.log(`[getNewOpportunitiesForUser] Fetched from Firestore: ${result.length} opportunities (${snapshot.docs.length} reads used)`);
   } else {
     console.log('[getNewOpportunitiesForUser] Using JSON fallback for userId:', userId);
     const store = await readStore();
