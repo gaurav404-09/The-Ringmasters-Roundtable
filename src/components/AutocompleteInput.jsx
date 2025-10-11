@@ -6,6 +6,7 @@ const AutocompleteInput = ({ value, onChange, onIataCode, placeholder, className
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const wrapperRef = useRef(null);
+  const lastReportedCodeRef = useRef('');
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -19,6 +20,21 @@ const AutocompleteInput = ({ value, onChange, onIataCode, placeholder, className
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (!onIataCode) {
+      return;
+    }
+
+    const derivedCode = getIataCode(value);
+    if (derivedCode && derivedCode !== lastReportedCodeRef.current) {
+      onIataCode(derivedCode);
+      lastReportedCodeRef.current = derivedCode;
+    } else if (!derivedCode && lastReportedCodeRef.current) {
+      onIataCode('');
+      lastReportedCodeRef.current = '';
+    }
+  }, [value, onIataCode]);
 
   const handleInputChange = (e) => {
     const input = e.target.value;
@@ -53,6 +69,13 @@ const AutocompleteInput = ({ value, onChange, onIataCode, placeholder, className
     const iataCode = getIataCode(suggestion);
     if (onIataCode) onIataCode(iataCode);
     setShowSuggestions(false);
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && showSuggestions && suggestions.length > 0) {
+      event.preventDefault();
+      handleSuggestionClick(suggestions[0]);
+    }
   };
 
   const highlightSuggestion = (suggestion, input) => {
@@ -99,6 +122,7 @@ const AutocompleteInput = ({ value, onChange, onIataCode, placeholder, className
           type="text"
           value={value}
           onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
           onFocus={() => value.length > 1 && setShowSuggestions(true)}
           placeholder={placeholder}
           className={`w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-shadow duration-200 ${className}`}

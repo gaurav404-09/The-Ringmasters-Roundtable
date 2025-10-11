@@ -38,6 +38,8 @@ sleep 1
 start_agent "Itinerary Agent" "itinerary_agent_mcp.py"
 sleep 1
 start_agent "Event Agent" "event_agent_mcp.py"
+sleep 1
+start_agent "Budget Agent" "budget_agent_mcp.py"
 
 echo "All agents started in separate terminal windows."
 echo "You can now use the application at http://localhost:5173"

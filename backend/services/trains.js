@@ -22,6 +22,100 @@ const DEFAULT_USER_AGENT =
   process.env.TRAIN_USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
+const STATION_NAME_OVERRIDES = {
+  NDLS: 'New Delhi',
+  CSMT: 'Chhatrapati Shivaji Maharaj Terminus',
+  HYB: 'Hyderabad Deccan',
+  SBC: 'Bengaluru City',
+  MAS: 'Chennai Central',
+  HWH: 'Howrah Junction',
+  MAO: 'Madgaon',
+  ERS: 'Ernakulam Junction',
+  PUNE: 'Pune Junction',
+  ADI: 'Ahmedabad Junction',
+  JP: 'Jaipur Junction',
+  BBS: 'Bhubaneswar',
+  LKO: 'Lucknow NR',
+  PNBE: 'Patna Junction',
+  GHY: 'Guwahati'
+};
+
+const FALLBACK_DEPARTURE_MINUTES = [420, 780, 1020]; // 07:00, 13:00, 17:00
+const FALLBACK_DURATIONS_MINUTES = [960, 1260, 1440]; // 16h, 21h, 24h
+const FALLBACK_CLASSES = ['3A', '2A', 'SL'];
+
+const padToTwo = (value) => String(Math.max(0, value)).padStart(2, '0');
+
+const minutesToHHMM = (totalMinutes) => {
+  if (!Number.isFinite(totalMinutes)) {
+    return '06:00';
+  }
+  const minutesInDay = 24 * 60;
+  const normalised = ((totalMinutes % minutesInDay) + minutesInDay) % minutesInDay;
+  const hours = Math.floor(normalised / 60);
+  const minutes = normalised % 60;
+  return `${padToTwo(hours)}:${padToTwo(minutes)}`;
+};
+
+const addMinutesToTime = (time, minutesToAdd) => {
+  if (!time || !/^[0-2]?\d:[0-5]\d$/.test(time)) {
+    return minutesToHHMM(minutesToAdd);
+  }
+  const [hours, minutes] = time.split(':').map((part) => Number(part) || 0);
+  const baseMinutes = hours * 60 + minutes;
+  return minutesToHHMM(baseMinutes + (Number(minutesToAdd) || 0));
+};
+
+const buildFallbackTrain = (index, origin, destination, departureMinutes, durationMinutes) => {
+  const departureTime = minutesToHHMM(departureMinutes);
+  const travelTime = minutesToHHMM(durationMinutes);
+  const arrivalTime = addMinutesToTime(departureTime, durationMinutes);
+  const classCode = FALLBACK_CLASSES[index % FALLBACK_CLASSES.length];
+  const originName = STATION_NAME_OVERRIDES[origin] || origin;
+  const destinationName = STATION_NAME_OVERRIDES[destination] || destination;
+
+  return {
+    class: classCode,
+    seats_available: 24 + (index * 12),
+    train_base: {
+      train_no: `FB${padToTwo(index + 1)}${origin.substring(0, 2)}${destination.substring(0, 2)}`.toUpperCase(),
+      train_name: `${originName} · ${destinationName} Express ${index + 1}`,
+      from_stn_code: origin,
+      from_stn_name: originName,
+      to_stn_code: destination,
+      to_stn_name: destinationName,
+      from_time: departureTime,
+      to_time: arrivalTime,
+      travel_time: travelTime,
+      classes: [classCode, 'SL', '3A'],
+      running_days: '1111111',
+      running_days_list: DISPLAY_DAY_ORDER,
+      distance_from_to: 900 + index * 120
+    },
+    metadata: {
+      source: 'fallback',
+      generated: true
+    }
+  };
+};
+
+const generateFallbackTrains = async (origin, destination, date) => {
+  const baseOptions = FALLBACK_DEPARTURE_MINUTES.map((departure, index) => {
+    const duration = FALLBACK_DURATIONS_MINUTES[index % FALLBACK_DURATIONS_MINUTES.length];
+    const train = buildFallbackTrain(index, origin, destination, departure, duration);
+    if (date) {
+      train.metadata.travelDate = date;
+    }
+    return train;
+  });
+
+  const priced = await Promise.all(
+    baseOptions.map((train) => ensureTrainPrice(train, { origin, destination }))
+  );
+
+  return priced.filter(Boolean);
+};
+
 const normaliseStationCode = (value) => {
   if (!value) return '';
   return String(value).trim().toUpperCase();
@@ -110,6 +204,18 @@ export async function getTrains(from, to, date) {
     return [];
   }
 
+  const fallbackWithLog = async (reason, error) => {
+    if (error) {
+      console.error(`[Trains] Falling back to synthesized data due to ${reason}:`, error.message || error);
+    } else {
+      console.warn(`[Trains] Falling back to synthesized data: ${reason}`);
+    }
+
+    const fallbackTrains = await generateFallbackTrains(origin, destination, date);
+    console.log(`[Trains] Returning ${fallbackTrains.length} synthesized train option(s) for ${origin} · ${destination}`);
+    return fallbackTrains;
+  };
+
   try {
     console.log(`[${new Date().toISOString()}] Fetching train data from Indian Rail API for ${origin} to ${destination}`);
     let trains = await fetchTrainsFromIndianRail(origin, destination);
@@ -119,15 +225,14 @@ export async function getTrains(from, to, date) {
     }
 
     if (!trains.length) {
-      console.warn(`[${new Date().toISOString()}] No trains found for ${origin} to ${destination}`);
-      return [];
+      return fallbackWithLog('no trains returned from source', null);
     }
 
     const annotated = trains.map((train) => ({
       ...annotateRunningDays(train),
       metadata: {
-        source: 'indian-rail-api',
-        fetchedAt: new Date().toISOString()
+        ...(train.metadata || {}),
+        source: train.metadata?.source || 'indian-rail-api'
       }
     }));
 
@@ -135,9 +240,12 @@ export async function getTrains(from, to, date) {
       annotated.map((train) => ensureTrainPrice(train, { origin, destination }))
     );
 
+    if (!priced.length) {
+      return fallbackWithLog('pricing step returned no trains', null);
+    }
+
     return priced.filter(Boolean);
   } catch (error) {
-    console.error('Error in getTrains:', error);
-    throw error;
+    return fallbackWithLog('fetch error', error);
   }
 }

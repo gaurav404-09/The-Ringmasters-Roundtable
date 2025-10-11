@@ -6,6 +6,7 @@ import { Sparkles, Bot, MapPin, CalendarRange, Route, Share2 } from 'lucide-reac
 import ENV from '../config/env';
 import { useAuth } from '../context/AuthContext';
 import { saveUserTrip } from '../lib/apiClient';
+import BudgetSummary from '../components/ui/BudgetSummary.jsx';
 
 const parseLogEntry = (entry, index) => {
   if (!entry) {
@@ -85,10 +86,12 @@ const calculateDaySpan = (startIso, endIso) => {
   return diffDays + 1;
 };
 
-const ResultSummary = ({ result, onReset }) => {
+const ResultSummary = ({ result, onReset, transportMode }) => {
   const totalDays = result?.itinerary?.length || 0;
   const cities = useMemo(() => getUniqueCities(result?.itinerary || []), [result]);
   const totalEvents = useMemo(() => countEvents(result?.events || {}), [result]);
+  const effectiveMode = transportMode || result?.transport_mode || 'train_flight';
+  const transportLabel = effectiveMode === 'driving' ? 'Driving (Budget agent skipped)' : 'Train / Flight';
 
   const summaryCards = [
     {
@@ -108,6 +111,14 @@ const ResultSummary = ({ result, onReset }) => {
       label: 'Unique events surfaced',
       value: totalEvents,
       hint: totalEvents ? 'Perfect for collaborative planning.' : 'No live events aligned for these dates.',
+    },
+    {
+      icon: <Route className="h-6 w-6 text-emerald-300" />,
+      label: 'Transport mode',
+      value: transportLabel,
+      hint: effectiveMode === 'driving'
+        ? 'Ground journeys skip the Budget Agent to keep things lightweight.'
+        : 'Budget Agent sourced flights/trains and stays for savings.',
     },
   ];
 
@@ -152,15 +163,29 @@ const ResultSummary = ({ result, onReset }) => {
   );
 };
 
-const ItineraryShowcase = ({ result }) => {
+const ItineraryShowcase = ({ result, transportMode }) => {
   if (!result?.itinerary?.length) {
+    return null;
+  }
+
+  const finalDestinationCity = result?.end_city || result?.itinerary?.[result.itinerary.length - 1]?.city;
+  const effectiveMode = transportMode || result?.transport_mode || 'train_flight';
+  const restrictEventsToDestination = effectiveMode === 'train_flight';
+  const displayedDays = restrictEventsToDestination
+    ? result.itinerary.filter((day) => day.city === finalDestinationCity)
+    : result.itinerary;
+
+  if (!displayedDays.length) {
     return null;
   }
 
   return (
     <section className="mt-10 space-y-6">
-      {result.itinerary.map((day, index) => {
-        const localEvents = result.events?.[day.city] || [];
+      {displayedDays.map((day, index) => {
+        const eventsCity = restrictEventsToDestination ? finalDestinationCity : day.city;
+        const localEvents = result.events?.[eventsCity] || [];
+        const dayNumber = Number.isFinite(day.day) ? day.day : index + 1;
+        const showDayBadge = !restrictEventsToDestination;
 
         return (
           <div
@@ -169,7 +194,9 @@ const ItineraryShowcase = ({ result }) => {
           >
             <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <span className="text-xs uppercase tracking-[0.4em] text-white/50">Day {day.day}</span>
+                {showDayBadge && (
+                  <span className="text-xs uppercase tracking-[0.4em] text-white/50">Day {dayNumber}</span>
+                )}
                 <h3 className="mt-2 text-2xl font-semibold text-white">{day.city}</h3>
               </div>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
@@ -231,49 +258,100 @@ const ItineraryShowcase = ({ result }) => {
   );
 };
 
-const AgentLogPanel = ({ logs }) => {
-  if (!logs?.length) {
-    return null;
-  }
+const AgentLogPanel = ({ logs, visible, onClose, planning }) => {
+  const containerRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!visible || !containerRef.current) return;
+    const node = containerRef.current;
+    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+  }, [logs, visible]);
 
   return (
-    <section className="mt-12">
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_20px_55px_rgba(15,23,42,0.45)] backdrop-blur">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <Bot className="h-6 w-6 text-emerald-300" />
-            <h3 className="text-lg font-semibold text-white">Orchestrator timeline</h3>
+    <div
+      className={`pointer-events-none fixed bottom-6 right-6 z-50 flex max-w-lg flex-col gap-3 transition-all duration-500 ease-out md:bottom-8 md:right-10 ${
+        visible
+          ? 'translate-y-0 opacity-100'
+          : 'translate-y-10 opacity-0'
+      }`}
+      aria-live="polite"
+    >
+      <div className="pointer-events-auto overflow-hidden rounded-[28px] border border-white/12 bg-slate-950/90 shadow-[0_32px_90px_rgba(15,118,255,0.4)] backdrop-blur-xl">
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-400/20 via-cyan-400/10 to-indigo-500/10" />
+          <div className="pointer-events-none absolute -top-16 right-10 h-32 w-32 rounded-full bg-emerald-300/30 blur-3xl" />
+          <header className="relative flex items-center justify-between px-6 py-5">
+            <div className="flex items-center gap-4">
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
+                <div className="absolute inset-0 animate-ping rounded-2xl bg-emerald-400/40" />
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/20">
+                  <Bot className="h-5 w-5 text-emerald-200" />
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.45em] text-white/60">Orchestrator relay</p>
+                <p className="text-lg font-semibold text-white">
+                  {planning ? 'Synchronizing agent ensemble…' : 'Mission log' }
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/70">
+                {logs?.length || 0} updates
+              </span>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/70 transition hover:border-white/40 hover:bg-white/15 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+          </header>
+        </div>
+
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          <div
+            ref={containerRef}
+            className="max-h-80 overflow-y-auto px-6 py-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/25"
+          >
+            {logs?.length ? (
+              <ol className="space-y-5">
+                {logs.map((rawLog, index) => {
+                  const { actor, message } = parseLogEntry(rawLog, index);
+                  return (
+                    <li
+                      key={`${actor}-${index}`}
+                      className="rounded-2xl border border-white/15 bg-white/8 p-4 text-sm text-white/85 shadow-[0_12px_28px_rgba(14,116,144,0.25)]"
+                    >
+                      <p className="text-[10px] uppercase tracking-[0.35em] text-white/40">{actor}</p>
+                      <p className="mt-3 leading-relaxed text-white/90">{message}</p>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <div className="flex items-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-xs text-white/65">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
+                Awaiting orchestrator updates…
+              </div>
+            )}
           </div>
-          <span className="text-xs uppercase tracking-[0.3em] text-white/50">
-            {logs.length} status updates
-          </span>
         </div>
 
-        <div className="mt-6">
-          <ol className="relative space-y-5">
-            {logs.map((rawLog, index) => {
-              const { actor, message } = parseLogEntry(rawLog, index);
-              const isFinal = index === logs.length - 1;
-
-              return (
-                <li key={`${actor}-${index}`} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-xs font-semibold uppercase tracking-[0.25em] text-white/70">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    {!isFinal && <span className="mt-2 h-full w-px flex-1 bg-gradient-to-b from-white/30 to-transparent" />}
-                  </div>
-                  <div className="flex-1 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">{actor}</p>
-                    <p className="mt-2 leading-relaxed text-white/80">{message}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
+        <footer className="relative flex items-center justify-between border-t border-white/10 px-6 py-4">
+          <p className="text-[11px] uppercase tracking-[0.4em] text-white/45">
+            {planning ? 'Live orchestration in progress' : 'Agents standing by'}
+          </p>
+          <div className="relative w-32 overflow-hidden rounded-full bg-white/10">
+            <div
+              className={`h-2 rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-indigo-500 transition-all duration-700 ${planning ? 'w-full animate-pulse' : 'w-2/5'}`}
+            />
+          </div>
+        </footer>
       </div>
-    </section>
+    </div>
   );
 };
 
@@ -294,6 +372,10 @@ const PlanTrip = () => {
   const [result, setResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedTripId, setSavedTripId] = useState(null);
+  const [transportMode, setTransportMode] = useState('train_flight');
+  const [lastResultTransportMode, setLastResultTransportMode] = useState('train_flight');
+  const [logPanelVisible, setLogPanelVisible] = useState(false);
+  const [logPanelClosing, setLogPanelClosing] = useState(false);
 
   useEffect(() => {
     const socketUrl = ENV.WS_URL;
@@ -325,8 +407,16 @@ const PlanTrip = () => {
 
     newSocket.on('trip_result', (data) => {
       setResult(data);
+      setLastResultTransportMode((prev) => data?.transport_mode || data?.transportMode || prev);
       setLogs((prev) => [...prev, 'Orchestrator delivered the final itinerary.']);
       setLoading(false);
+      setTimeout(() => {
+        setLogPanelClosing(true);
+        setTimeout(() => {
+          setLogPanelVisible(false);
+          setLogPanelClosing(false);
+        }, 400);
+      }, 2500);
     });
 
     return () => {
@@ -346,6 +436,7 @@ const PlanTrip = () => {
     }
     const adjusted = toDateInputValue(addDays(start, Math.max(0, dayCount - 1)));
     setEndDate(adjusted);
+    setSavedTripId(null);
   };
 
   const handleSubmit = (event) => {
@@ -360,6 +451,8 @@ const PlanTrip = () => {
     setSavedTripId(null);
     setResult(null);
     setLogs([]);
+    setLogPanelVisible(true);
+    setLogPanelClosing(false);
 
     socket.emit('plan_trip', {
       start_city: from,
@@ -367,7 +460,9 @@ const PlanTrip = () => {
       start_date: startDate,
       end_date: endDate,
       num_days: days,
+      transport_mode: transportMode,
     });
+    setLastResultTransportMode(transportMode);
   };
 
   const resetPlanner = () => {
@@ -398,6 +493,7 @@ const PlanTrip = () => {
         numDays: days,
         startDate,
         endDate,
+        transportMode,
         requestedAt: new Date().toISOString(),
         orchestrationLogs: logs,
         result,
@@ -499,6 +595,40 @@ const PlanTrip = () => {
                     </div>
                   </div>
 
+                  <div className="space-y-3">
+                    <span className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Travel mode</span>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setTransportMode('train_flight')}
+                        className={`rounded-2xl border px-4 py-3 text-left transition focus:outline-none ${
+                          transportMode === 'train_flight'
+                            ? 'border-emerald-300/70 bg-emerald-400/20 text-white shadow-[0_18px_45px_rgba(16,185,129,0.35)]'
+                            : 'border-white/15 bg-white/5 text-white/75 hover:border-white/35 hover:text-white'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold uppercase tracking-[0.25em]">Train / Flight</p>
+                        <p className="mt-1 text-xs text-white/60">
+                          Unlock Budget Agent insights with cheapest transport & stay picks.
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTransportMode('driving')}
+                        className={`rounded-2xl border px-4 py-3 text-left transition focus:outline-none ${
+                          transportMode === 'driving'
+                            ? 'border-cyan-300/70 bg-cyan-400/20 text-white shadow-[0_18px_45px_rgba(14,165,233,0.35)]'
+                            : 'border-white/15 bg-white/5 text-white/75 hover:border-white/35 hover:text-white'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold uppercase tracking-[0.25em]">Driving</p>
+                        <p className="mt-1 text-xs text-white/60">
+                          Focus on road pacing and custom stops without budget recommendations.
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <label htmlFor="start-date" className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
@@ -596,7 +726,18 @@ const PlanTrip = () => {
           </div>
         </section>
 
-        <AgentLogPanel logs={logs} />
+        <AgentLogPanel
+          logs={logs}
+          visible={logPanelVisible && !logPanelClosing}
+          planning={loading}
+          onClose={() => {
+            setLogPanelClosing(true);
+            setTimeout(() => {
+              setLogPanelVisible(false);
+              setLogPanelClosing(false);
+            }, 400);
+          }}
+        />
 
         {result && (
           <>
@@ -636,8 +777,43 @@ const PlanTrip = () => {
               </div>
             </div>
 
-            <ResultSummary result={result} onReset={resetPlanner} />
-            <ItineraryShowcase result={result} />
+            {lastResultTransportMode === 'driving' ? (
+              <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70 shadow-[0_18px_45px_rgba(15,23,42,0.4)] backdrop-blur">
+                The Budget Agent is skipped for driving adventures to keep things nimble. You can still add your own fuel and stay notes once the itinerary is saved.
+              </div>
+            ) : (
+              result?.budget && (
+                <section className="mt-10 space-y-5 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_25px_60px_rgba(15,23,42,0.45)] backdrop-blur">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/50 bg-emerald-400/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-100/85">
+                        Budget Agent highlights
+                      </span>
+                      <h2 className="mt-3 text-lg font-semibold text-white">Cheapest picks curated for this route</h2>
+                      <p className="text-sm text-white/70">
+                        Flights/trains and stay suggestions are sourced live via `/api/travel` and optimised for savings.
+                      </p>
+                    </div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
+                      Updated {new Date(result.budget.fetched_at || Date.now()).toLocaleString()}
+                    </div>
+                  </div>
+                  <BudgetSummary budget={result.budget} />
+                  {result.budget.notes?.length ? (
+                    <ul className="space-y-2 text-xs text-white/60">
+                      {result.budget.notes.map((note, index) => (
+                        <li key={index} className="rounded-xl border border-white/10 bg-white/10 px-4 py-2">
+                          {note}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
+              )
+            )}
+
+            <ResultSummary result={result} onReset={resetPlanner} transportMode={lastResultTransportMode} />
+            <ItineraryShowcase result={result} transportMode={lastResultTransportMode} />
           </>
         )}
       </main>

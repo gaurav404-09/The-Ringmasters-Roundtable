@@ -67,6 +67,13 @@ const initializeFirebaseApp = () => {
 export const getFirebaseApp = () => initializeFirebaseApp();
 
 export const getFirestoreClient = () => {
+  // Check if Firestore is explicitly disabled to save quota
+  const useFirestore = process.env.USE_FIRESTORE !== 'false';
+  if (!useFirestore) {
+    console.log('[firebaseAdmin] Firestore disabled via USE_FIRESTORE=false, using JSON fallback');
+    return null;
+  }
+  
   const app = initializeFirebaseApp();
   if (!app) return null;
   return admin.firestore(app);

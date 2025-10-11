@@ -59,6 +59,51 @@ export async function fetchUserTrips(uid) {
   return handleResponse(response);
 }
 
+export async function updateTripActivity(uid, tripId, itemId, changes) {
+  const response = await authorizedFetch(`/api/users/${encodeURIComponent(uid)}/trips/${encodeURIComponent(tripId)}/activities/${encodeURIComponent(itemId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ changes }),
+  });
+
+  return handleResponse(response);
+}
+
+export async function deleteTripActivity(uid, tripId, itemId) {
+  const response = await authorizedFetch(`/api/users/${encodeURIComponent(uid)}/trips/${encodeURIComponent(tripId)}/activities/${encodeURIComponent(itemId)}`, {
+    method: 'DELETE',
+  });
+
+  return handleResponse(response);
+}
+
+export async function addTripActivity(uid, tripId, payload) {
+  // payload must include: { dayIdentifier: {...}, activity: {...} }
+  const { dayIdentifier, activity } = payload || {};
+  const response = await authorizedFetch(`/api/users/${encodeURIComponent(uid)}/trips/${encodeURIComponent(tripId)}/activities`, {
+    method: 'POST',
+    body: JSON.stringify({ dayIdentifier, activity }),
+  });
+
+  return handleResponse(response);
+}
+
+export async function searchPlaces(query, limit = 6) {
+  const params = new URLSearchParams({ q: query });
+  if (limit) {
+    params.set('limit', String(limit));
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/places/search?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  return handleResponse(response);
+}
+
 export async function saveUserTrip(uid, trip) {
   const response = await authorizedFetch(`/api/users/${encodeURIComponent(uid)}/trips`, {
     method: 'POST',

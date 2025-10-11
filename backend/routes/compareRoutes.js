@@ -3,6 +3,11 @@ import freeDataService from '../services/freeDataService.js';
 
 const router = express.Router();
 
+const roundScore = (value, precision = 2) => {
+  if (!Number.isFinite(value)) return 0;
+  return parseFloat(value.toFixed(precision));
+};
+
 const calculateScore = (attractions = [], restaurants = []) => {
   if ((!attractions || attractions.length === 0) && (!restaurants || restaurants.length === 0)) {
     return {
@@ -22,11 +27,11 @@ const calculateScore = (attractions = [], restaurants = []) => {
   const restaurantScore = Math.min(restaurants.length / maxRestaurants, 1) * 5;
 
   const scores = {
-    food: parseFloat(restaurantScore.toFixed(1)),
-    culture: parseFloat(attractionScore.toFixed(1)),
-    adventure: parseFloat(((attractionScore * 0.6) + (restaurantScore * 0.4)).toFixed(1)),
-    nightlife: parseFloat((restaurantScore * 0.8).toFixed(1)),
-    shopping: parseFloat(((attractionScore * 0.4) + (restaurantScore * 0.6)).toFixed(1)),
+    food: roundScore(restaurantScore),
+    culture: roundScore(attractionScore),
+    adventure: roundScore((attractionScore * 0.6) + (restaurantScore * 0.4)),
+    nightlife: roundScore(restaurantScore * 0.8),
+    shopping: roundScore((attractionScore * 0.4) + (restaurantScore * 0.6)),
   };
 
   const weights = {
@@ -37,13 +42,13 @@ const calculateScore = (attractions = [], restaurants = []) => {
     shopping: 0.15,
   };
 
-  scores.overall = parseFloat((
+  scores.overall = roundScore(
     scores.food * weights.food +
     scores.culture * weights.culture +
     scores.adventure * weights.adventure +
     scores.nightlife * weights.nightlife +
     scores.shopping * weights.shopping
-  ).toFixed(1));
+  );
 
   return scores;
 };
@@ -227,6 +232,14 @@ router.post('/compare', async (req, res) => {
       destination2,
     );
 
+    const attractionCount1 = data1.attractions?.length || 0;
+    const restaurantCount1 = data1.restaurants?.length || 0;
+    const priceLevel1 = restaurantCount1 > 10 ? '$$$' : restaurantCount1 > 5 ? '$$' : restaurantCount1 > 0 ? '$' : 'N/A';
+
+    const attractionCount2 = data2.attractions?.length || 0;
+    const restaurantCount2 = data2.restaurants?.length || 0;
+    const priceLevel2 = restaurantCount2 > 10 ? '$$$' : restaurantCount2 > 5 ? '$$' : restaurantCount2 > 0 ? '$' : 'N/A';
+
     const comparisonData = {
       success: true,
       requestId,
@@ -237,13 +250,19 @@ router.post('/compare', async (req, res) => {
         scores: dest1Scores,
         pros: dest1ProsCons.pros,
         cons: dest1ProsCons.cons,
-        rating: dest1Scores.overall.toFixed(1),
+        rating: dest1Scores.overall.toFixed(2),
+        ratingValue: dest1Scores.overall,
         reviews: `${(data1.attractions?.length || 0) + (data1.restaurants?.length || 0)}`,
         description: `Explore ${destination1} with ${(data1.attractions?.length || 0)} attractions and ${(data1.restaurants?.length || 0)} restaurants`,
-        price: data1.restaurants?.length > 5 ? '$$' : data1.restaurants?.length > 10 ? '$$$' : '$',
+        price: priceLevel1,
         avgTemp: data1.weather?.temp ? `${Math.round(data1.weather.temp)}°C` : 'N/A',
         weather: data1.weather || { temp: null, description: 'Weather data unavailable', humidity: 'N/A', windSpeed: 'N/A' },
         highlights: data1.attractions?.slice(0, 4).map((a) => a.name).filter((name) => name && name.length > 0) || [],
+        dataQuality: {
+          attractions: attractionCount1,
+          restaurants: restaurantCount1,
+          weather: Boolean(data1.weather && !data1.weather.error),
+        },
       },
       destination2: {
         ...data2,
@@ -251,13 +270,19 @@ router.post('/compare', async (req, res) => {
         scores: dest2Scores,
         pros: dest2ProsCons.pros,
         cons: dest2ProsCons.cons,
-        rating: dest2Scores.overall.toFixed(1),
+        rating: dest2Scores.overall.toFixed(2),
+        ratingValue: dest2Scores.overall,
         reviews: `${(data2.attractions?.length || 0) + (data2.restaurants?.length || 0)}`,
         description: `Explore ${destination2} with ${(data2.attractions?.length || 0)} attractions and ${(data2.restaurants?.length || 0)} restaurants`,
-        price: data2.restaurants?.length > 5 ? '$$' : data2.restaurants?.length > 10 ? '$$$' : '$',
+        price: priceLevel2,
         avgTemp: data2.weather?.temp ? `${Math.round(data2.weather.temp)}°C` : 'N/A',
         weather: data2.weather || { temp: null, description: 'Weather data unavailable', humidity: 'N/A', windSpeed: 'N/A' },
         highlights: data2.attractions?.slice(0, 4).map((a) => a.name).filter((name) => name && name.length > 0) || [],
+        dataQuality: {
+          attractions: attractionCount2,
+          restaurants: restaurantCount2,
+          weather: Boolean(data2.weather && !data2.weather.error),
+        },
       },
       comparison: {
         winner: dest1Scores.overall > dest2Scores.overall ? destination1 : destination2,

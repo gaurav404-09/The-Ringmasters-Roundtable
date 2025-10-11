@@ -31,6 +31,8 @@ tell application "Terminal"
   do script "cd '$MCP_DIR'; source '$VENV_ACTIVATE'; python itinerary_agent_mcp.py"
   delay 1
   do script "cd '$MCP_DIR'; source '$VENV_ACTIVATE'; python event_agent_mcp.py"
+  delay 1
+  do script "cd '$MCP_DIR'; source '$VENV_ACTIVATE'; python budget_agent_mcp.py"
   activate
 end tell
 EOF

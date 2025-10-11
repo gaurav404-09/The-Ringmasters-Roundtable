@@ -19,6 +19,8 @@ import itineraryRoutes from './routes/itineraryRoutes.js';
 import compareRoutes from './routes/compareRoutes.js';
 import nearbyRoutes from './routes/nearbyRoutes.js';
 import communityRoutes from './routes/communityRoutes.js';
+import { startOpportunityScheduler, runOpportunityAgent } from './services/opportunityAgent.js';
+import opportunityRoutes from './routes/opportunityRoutes.js';
 import requestLogger from './middleware/requestLogger.js';
 import { getFlights, getHotels } from './services/amadeus.js';
 import { getTrains } from './services/trains.js';
@@ -102,6 +104,7 @@ app.use('/api', compareRoutes);
 app.use('/api', nearbyRoutes);
 app.use('/api', crystalBallRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/opportunities', opportunityRoutes);
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
 }
@@ -243,6 +246,7 @@ io.on('connection', (socket) => {
                 start_date: data.start_date,
                 end_date: data.end_date,
                 num_days: parseInt(data.num_days, 10),
+                transport_mode: data.transport_mode || 'train_flight',
             },
         };
 
@@ -671,6 +675,14 @@ server.listen(PORT, '0.0.0.0', () => {
   // Connect to RabbitMQ if enabled
   if (process.env.ENABLE_RABBITMQ === 'true') {
     connectRabbitMQ().catch(console.error);
+  }
+
+  startOpportunityScheduler();
+
+  if (process.env.PIP_AGENT_ENABLED === 'true') {
+    runOpportunityAgent().catch((error) => {
+      console.error('[OpportunityAgent] Initial run failed:', error);
+    });
   }
 });
 

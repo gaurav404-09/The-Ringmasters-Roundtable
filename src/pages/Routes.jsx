@@ -550,18 +550,6 @@ const RoutesPage = () => {
                 })}
 
                 <div className="flex flex-1 flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={toggleComparison}
-                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all ${
-                      showComparison
-                        ? "border-sky-200/60 bg-sky-400/80 text-slate-900 shadow-[0_16px_30px_rgba(56,189,248,0.35)]"
-                        : "border-white/20 bg-white/10 text-white/80 hover:border-white/40 hover:text-white"
-                    }`}
-                  >
-                    <FaDirections className="text-sm" />
-                    {showComparison ? "Exit Comparison" : "Compare Routes"}
-                  </button>
                   <motion.button
                     type="submit"
                     whileTap={{ scale: 0.95 }}

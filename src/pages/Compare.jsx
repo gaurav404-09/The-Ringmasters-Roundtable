@@ -153,12 +153,15 @@ const normalizeDestination = (dest) => {
       : null;
 
   const { pros, cons } = deriveProsCons(dest, ratingValue, avgTempNumeric);
+  const rawReviews = dest.reviews ?? (dest.attractions?.length || 0) + (dest.restaurants?.length || 0);
+  const reviewsCount = Number.isFinite(Number(rawReviews)) ? Number(rawReviews) : null;
 
   return {
     ...dest,
     ratingValue,
-    ratingDisplay: ratingValue ? ratingValue.toFixed(1) : dest.rating || 'N/A',
-    reviews: dest.reviews ?? `${(dest.attractions?.length || 0) + (dest.restaurants?.length || 0)}`,
+    ratingDisplay: Number.isFinite(ratingValue) && ratingValue > 0 ? ratingValue.toFixed(2) : dest.rating || 'N/A',
+    reviews: reviewsCount !== null ? reviewsCount.toString() : 'N/A',
+    reviewsCount,
     price: derivePriceLevel(dest),
     categories: normalizeCategories(dest),
     highlights: normalizeHighlights(dest),
@@ -360,19 +363,102 @@ const Compare = () => {
     );
   };
 
-  // Overall winner calculation
+  const scoreCard = (dest) => {
+    if (!dest) {
+      return {
+        rating: 0,
+        categoryTotal: 0,
+        venueCount: 0,
+        priceIndex: 3,
+      };
+    }
+
+    const rating = Number.isFinite(dest.ratingValue)
+      ? dest.ratingValue
+      : parseRatingValue(dest.rating ?? dest.scores?.overall ?? 0);
+
+    const categories = dest.categories || {};
+    const categoryTotal = Object.values(categories).reduce((acc, value) => acc + (Number(value) || 0), 0);
+
+    const dataQuality = dest.dataQuality || {};
+    const venueCount = Number(dataQuality.attractions || 0) + Number(dataQuality.restaurants || 0);
+
+    const priceMap = { '$': 0, '$$': 1, '$$$': 2 };
+    const priceIndex = priceMap[dest.price] ?? 3; // unknown treated as highest cost
+
+    return { rating, categoryTotal, venueCount, priceIndex };
+  };
+
   const getOverallWinner = () => {
     const left = destinations.left;
     const right = destinations.right;
-    
+
     if (!left || !right) return null;
 
-    const leftRating = parseFloat(left.rating) || 0;
-    const rightRating = parseFloat(right.rating) || 0;
+    const leftCard = scoreCard(left);
+    const rightCard = scoreCard(right);
 
-    if (leftRating > rightRating) return 'left';
-    if (rightRating > leftRating) return 'right';
+    const ratingDiff = leftCard.rating - rightCard.rating;
+    if (Math.abs(ratingDiff) >= 0.05) {
+      return ratingDiff > 0 ? 'left' : 'right';
+    }
+
+    const categoryDiff = leftCard.categoryTotal - rightCard.categoryTotal;
+    if (Math.abs(categoryDiff) >= 0.4) {
+      return categoryDiff > 0 ? 'left' : 'right';
+    }
+
+    const venueDiff = leftCard.venueCount - rightCard.venueCount;
+    if (Math.abs(venueDiff) >= 3) {
+      return venueDiff > 0 ? 'left' : 'right';
+    }
+
+    const priceDiff = leftCard.priceIndex - rightCard.priceIndex;
+    if (priceDiff !== 0) {
+      return priceDiff < 0 ? 'left' : 'right';
+    }
+
     return 'tie';
+  };
+
+  const getWinnerReason = () => {
+    const left = destinations.left;
+    const right = destinations.right;
+    if (!left || !right) return '';
+
+    const winner = getOverallWinner();
+    if (!winner) return '';
+
+    const leftCard = scoreCard(left);
+    const rightCard = scoreCard(right);
+
+    const ratingDiff = leftCard.rating - rightCard.rating;
+    if (Math.abs(ratingDiff) >= 0.05) {
+      const leader = ratingDiff > 0 ? left : right;
+      const margin = Math.abs(ratingDiff).toFixed(2);
+      return `${leader.name} edges ahead on traveler score by ${margin} points.`;
+    }
+
+    const categoryDiff = leftCard.categoryTotal - rightCard.categoryTotal;
+    if (Math.abs(categoryDiff) >= 0.4) {
+      const leader = categoryDiff > 0 ? left : right;
+      const margin = Math.abs(categoryDiff).toFixed(1);
+      return `${leader.name} offers richer experiences across food, culture, adventure, nightlife, and shopping (total +${margin}).`;
+    }
+
+    const venueDiff = leftCard.venueCount - rightCard.venueCount;
+    if (Math.abs(venueDiff) >= 3) {
+      const leader = venueDiff > 0 ? left : right;
+      return `${leader.name} currently surfaces ${Math.abs(venueDiff)} more verified venues for your plans.`;
+    }
+
+    const priceDiff = leftCard.priceIndex - rightCard.priceIndex;
+    if (priceDiff !== 0) {
+      const leader = priceDiff < 0 ? left : right;
+      return `${leader.name} provides stronger value based on the detected price level.`;
+    }
+
+    return 'Scores are neck-and-neck across every metric we track.';
   };
 
   // Render destination card
@@ -386,8 +472,18 @@ const Compare = () => {
     }
 
     const isWinner = getOverallWinner() === side;
-    const ratingValue = parseRatingValue(dest.rating);
-    const ratingLabel = ratingValue ? ratingValue.toFixed(1) : dest.rating || 'N/A';
+    const ratingValue = Number.isFinite(dest.ratingValue)
+      ? dest.ratingValue
+      : parseRatingValue(dest.rating ?? dest.scores?.overall ?? 0);
+    const ratingLabel = Number.isFinite(ratingValue) && ratingValue > 0
+      ? ratingValue.toFixed(2)
+      : dest.ratingDisplay || dest.rating || 'N/A';
+    const reviewsCount = Number.isFinite(dest.reviewsCount)
+      ? dest.reviewsCount
+      : (() => {
+          const parsed = Number.parseInt(dest.reviews, 10);
+          return Number.isNaN(parsed) ? null : parsed;
+        })();
 
     return (
       <div
@@ -445,8 +541,8 @@ const Compare = () => {
             <div className="text-right">
               <p className="text-xs uppercase tracking-[0.35em] text-white/50">Traveler score</p>
               <p className="text-2xl font-bold text-white">{ratingLabel}</p>
-              {dest.reviews && dest.reviews !== 'N/A' && (
-                <p className="text-xs text-white/60">Across {dest.reviews} venues</p>
+              {Number.isFinite(reviewsCount) && reviewsCount > 0 && (
+                <p className="text-xs text-white/60">Across {reviewsCount.toLocaleString()} venues</p>
               )}
             </div>
           </div>
@@ -728,6 +824,9 @@ const Compare = () => {
                     <div className="text-6xl">🤝</div>
                     <h3 className="mt-4 text-3xl font-bold">It’s a draw!</h3>
                     <p className="mt-2 text-white/80">Both destinations bring magic to the table. Explore categories for deeper clues.</p>
+                    {getWinnerReason() && (
+                      <p className="mt-2 text-sm text-white/80">{getWinnerReason()}</p>
+                    )}
                   </>
                 ) : (
                   <>
@@ -735,7 +834,10 @@ const Compare = () => {
                     <h3 className="mt-4 text-3xl font-bold">
                       {getOverallWinner() === 'left' ? destinations.left?.name : destinations.right?.name} Clinches the Spotlight
                     </h3>
-                    <p className="mt-2 text-white/80">Crowned based on overall ratings, cultural density, and traveler-friendly perks.</p>
+                    <p className="mt-2 text-white/80">Crowned after weighing ratings, experience density, venue volume, and value.</p>
+                    {getWinnerReason() && (
+                      <p className="mt-2 text-sm text-white/80">{getWinnerReason()}</p>
+                    )}
                   </>
                 )}
               </div>
