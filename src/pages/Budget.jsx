@@ -107,13 +107,13 @@ const Budget = () => {
     if (!place) return '';
     const str = place.toString().trim();
     const upper = str.toUpperCase();
-    
+
     // If it's already a 3-letter IATA code, use it directly
     if (/^[A-Z]{3}$/.test(upper)) return upper;
-    
+
     // Otherwise map known city names (case-insensitive)
     const lower = str.toLowerCase();
-    return cityCodeMap[lower] || upper;
+    return cityCodeMap[lower] || '';
   };
 
   // Handle origin change
@@ -137,8 +137,11 @@ const Budget = () => {
       return;
     }
 
-    if (!originIata || !destinationIata) {
-      toast.error("Please select valid cities from the suggestions");
+    const finalOriginIata = originIata || getCityCode(origin);
+    const finalDestinationIata = destinationIata || getCityCode(destination);
+
+    if (!finalOriginIata || !finalDestinationIata) {
+      toast.error("Please select valid cities from the suggestions or enter a known airport code");
       return;
     }
 
@@ -149,8 +152,8 @@ const Budget = () => {
 
     try {
       console.log("Making API request with params:", {
-        origin: originIata,
-        destination: destinationIata,
+        origin: finalOriginIata,
+        destination: finalDestinationIata,
         date: departureDate,
         checkInDate: checkIn,
         checkOutDate: checkOut,

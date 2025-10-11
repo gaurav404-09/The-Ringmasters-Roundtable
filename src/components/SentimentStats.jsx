@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FaSmile, FaFrown, FaMeh, FaChartBar } from 'react-icons/fa';
 import api from '../utils/api';
 
-const SentimentStats = ({ source, destination, tag }) => {
+const SentimentStats = ({ source, destination, tag, revisionKey = 0 }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -30,7 +30,7 @@ const SentimentStats = ({ source, destination, tag }) => {
     };
 
     fetchStats();
-  }, [source, destination, tag]);
+  }, [source, destination, tag, revisionKey]);
 
   if (loading) {
     return (

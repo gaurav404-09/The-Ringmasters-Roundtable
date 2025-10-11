@@ -130,7 +130,7 @@ const Navbar = () => {
                     <span>{item.name}</span>
                     <FaChevronDown className={`text-xs transition ${dropdownActive ? 'text-cyan-300 rotate-0' : ''} group-hover:-rotate-180`} />
                   </button>
-                  <div className="invisible absolute left-0 top-full z-[100] mt-2 w-52 translate-y-2 rounded-2xl border border-white/10 bg-slate-900/95 p-2 opacity-0 shadow-[0_18px_42px_rgba(2,6,23,0.6)] backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                  <div className="invisible absolute left-0 top-full z-[100] mt-2 w-52 translate-y-2 rounded-2xl border border-white/10 bg-slate-900/95 p-2 opacity-0 shadow-[0_18px_42px_rgba(2,6,23,0.6)] backdrop-blur-xl transition-all duration-300 ease-in-out delay-75 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-hover:delay-0">
                     {item.items.map((subItem) => (
                       <Link
                         key={subItem.key}

@@ -26,75 +26,114 @@ class CohereEventService {
   }
 
   // Main event generation using Cohere
-  async getEvents(city, dateRange = "next week", category = "general") {
-    const prompt = `Generate 5 unique upcoming events in ${city} for ${dateRange} in the ${category} category. 
-Format the response as a valid JSON array of objects with these exact property names:
+  async getEvents(city, dateRange = "the next two weeks", category = "culture") {
+    const normalizedCity = city || "your city";
+    const normalizedCategory = category || "culture";
+    const prompt = `Generate between 5 and 7 specific upcoming events happening in ${normalizedCity} for ${dateRange} focusing on ${normalizedCategory}. 
+Return a STRICT JSON array only (no prose) where every object has these fields:
 [
   {
-    "title": "Event Title",
+    "title": "Concise event title",
     "date": "YYYY-MM-DD",
     "time": "HH:MM AM/PM",
-    "location": "Venue Name, Area",
-    "description": "Brief description",
-    "price": "$",
-    "category": "${category}",
-    "keywords": "comma,separated,keywords,for,image,search"
+    "location": "Venue name, neighbourhood",
+    "description": "1-2 sentence teaser",
+    "price": "Free / $$ / $$$",
+    "category": "${normalizedCategory}",
+    "keywords": "3-6 comma separated keywords for imagery"
   }
 ]
 
-IMPORTANT: Include relevant keywords in the 'keywords' field to help find appropriate images for each event.`;
+Rules:
+- Dates must be real upcoming calendar dates.
+- Times should be realistic for the event type.
+- Use venues and happenings that plausibly exist in ${normalizedCity}.
+- Always include the keywords field.
+- Do not include markdown or additional text outside the JSON array.`;
 
     try {
-      console.log("Sending request to Cohere API with prompt:", prompt);
-      const response = await this.client.chat({
+      const response = await this.client.responses.create({
         model: "command-r-08-2024",
-        message: prompt,  // Changed from object to string
-        temperature: 0.5
-      }).catch(err => {
-        console.error("Error in Cohere API call:", err);
-        throw err;
+        input: prompt,
+        temperature: 0.4,
+        max_tokens: 800
       });
 
-      console.log("Raw Cohere API response:", response);
-      console.log("Response type:", typeof response);
-      console.log("Response keys:", Object.keys(response));
-
-      // Extract the response content
-      let output = response?.text || 
-                 response?.text ||
-                 (Array.isArray(response) ? response[0]?.text : '') ||
-                 '';
-
-      console.log("Extracted output:", output);
-
-      if (output) {
-        const jsonMatch = output.match(/\[[\s\S]*\]/); // Extract JSON array
-        if (jsonMatch) {
-          try {
-            let parsed = JSON.parse(jsonMatch[0]);
-            console.log("Successfully parsed JSON response:", parsed);
-            
-            // Process events to add images
-            if (Array.isArray(parsed)) {
-              parsed = await this.processEventsWithImages(parsed, city, category);
-            }
-            
-            return parsed;
-          } catch (err) {
-            console.error("⚠️ JSON parse failed:", err, "Output was:", jsonMatch[0]);
-          }
-        } else {
-          console.log("No JSON array found in output");
-        }
-      } else {
-        console.log("No output found in response");
+      const output = response?.output_text?.trim();
+      const parsed = await this.extractEventsFromOutput(output, normalizedCity, normalizedCategory);
+      if (parsed?.length) {
+        return parsed;
       }
 
-      return this.getFallbackEvents(city, category);
+      console.warn("Cohere returned no parsable events. Falling back.");
+      return this.getFallbackEvents(normalizedCity, normalizedCategory);
     } catch (err) {
       console.error("❌ Error calling Cohere API:", err);
-      return this.getFallbackEvents(city, category);
+      return this.getFallbackEvents(normalizedCity, normalizedCategory);
     }
+  }
+
+  extractEventsFromOutput(rawText, city, category) {
+    if (!rawText) {
+      return null;
+    }
+
+    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.warn("Cohere response did not contain JSON array.", rawText);
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(parsed)) {
+        return null;
+      }
+
+      const cleaned = parsed
+        .map((event) => this.normalizeEvent(event, city, category))
+        .filter(Boolean);
+
+      return this.processEventsWithImages(cleaned.slice(0, 7), city, category);
+    } catch (error) {
+      console.error("Failed to parse Cohere JSON response:", error);
+      return null;
+    }
+  }
+
+  normalizeEvent(event, city, category) {
+    if (!event || typeof event !== "object") {
+      return null;
+    }
+
+    const safeDate = event.date && !Number.isNaN(new Date(event.date).getTime())
+      ? event.date
+      : this.getFutureDate(3);
+
+    const safeTime = typeof event.time === "string" && event.time.trim().length
+      ? event.time.trim()
+      : "7:00 PM";
+
+    const keywords = (event.keywords || "")
+      .toString()
+      .split(/[,;]+/)
+      .map((word) => word.trim())
+      .filter(Boolean);
+
+    if (keywords.length < 3) {
+      keywords.push(city, category, "event");
+    }
+
+    return {
+      title: (event.title || "Spotlight Event").toString().trim(),
+      date: safeDate,
+      time: safeTime,
+      location: (event.location || `${city} • Venue TBA`).toString().trim(),
+      description: (event.description || `Immersive ${category} showcase in ${city}.`).toString().trim(),
+      price: (event.price || "$$").toString().trim(),
+      category: event.category || category,
+      keywords: keywords.join(","),
+    };
   }
 
   // Generate a random Unsplash image URL based on keywords
@@ -150,28 +189,43 @@ IMPORTANT: Include relevant keywords in the 'keywords' field to help find approp
 
   // Fallback events in case API fails
   async getFallbackEvents(city, category) {
+    const normalizedCategory = category || "culture";
+    const titleCategory = normalizedCategory.charAt(0).toUpperCase() + normalizedCategory.slice(1);
+
     const fallbackEvents = [
       {
-        title: `${category.charAt(0).toUpperCase() + category.slice(1)} Festival`,
+        title: `${titleCategory} Showcase`,
         date: this.getFutureDate(3),
-        time: "6:00 PM",
-        location: `${city} City Center`,
-        description: `Experience the best of ${category} in this exciting festival.`,
+        time: "7:30 PM",
+        location: `${city} City Center Atrium`,
+        description: `A curated evening featuring standout ${normalizedCategory} talent from across ${city}.`,
         price: "$$",
-        category: category,
+        category: normalizedCategory,
+        keywords: `${city},${normalizedCategory},showcase,event`
       },
       {
-        title: `${city} ${category} Workshop`,
+        title: `${city} After Dark Sessions`,
         date: this.getFutureDate(5),
-        time: "2:00 PM",
-        location: `${city} Community Hall`,
-        description: `Learn new skills and techniques in this hands-on ${category} workshop.`,
-        price: "$",
-        category: category,
+        time: "9:00 PM",
+        location: `${city} Warehouse District`,
+        description: `Pop-up performances, street food collectives, and immersive art taking over the block.`,
+        price: "Free",
+        category: normalizedCategory,
+        keywords: `${city},nightlife,pop-up,${normalizedCategory}`
       },
+      {
+        title: `${titleCategory} Day Lab`,
+        date: this.getFutureDate(7),
+        time: "1:00 PM",
+        location: `${city} Innovation Hub`,
+        description: `Hands-on workshops and panels with creators pioneering new waves in ${normalizedCategory}.`,
+        price: "$$$",
+        category: normalizedCategory,
+        keywords: `${city},workshop,${normalizedCategory},festival`
+      }
     ];
 
-    return this.processEventsWithImages(fallbackEvents, city, category);
+    return this.processEventsWithImages(fallbackEvents, city, normalizedCategory);
   }
 }
 

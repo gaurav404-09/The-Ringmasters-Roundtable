@@ -71,6 +71,29 @@ class FreeDataService:
             {
                 'name': el['tags'].get('name', 'Local Eatery'),
                 'cuisine': el['tags'].get('cuisine', 'Local'),
+                'coordinates': {'lat': el.get('lat'), 'lon': el.get('lon')},
+                'priceLevel': '$$'
+            }
+            for el in elements if 'name' in el.get('tags', {})
+        ]
+
+    def get_hotels(self, destination):
+        coords = self.get_coordinates(destination)
+        if not coords: return []
+        lat, lon = coords['lat'], coords['lon']
+        query = f"""
+        [out:json][timeout:20];
+        (
+          node["tourism"="hotel"](around:5000,{lat},{lon});
+          node["tourism"="guest_house"](around:5000,{lat},{lon});
+        );
+        out body 10;
+        """
+        elements = self.query_overpass(query)
+        return [
+            {
+                'name': el['tags'].get('name', f'{destination} Hotel'),
+                'description': el['tags'].get('description', 'Comfortable accommodation'),
                 'coordinates': {'lat': el.get('lat'), 'lon': el.get('lon')}
             }
             for el in elements if 'name' in el.get('tags', {})
