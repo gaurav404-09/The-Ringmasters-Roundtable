@@ -5,31 +5,31 @@ Design decisions:
 - ChromaDB chosen over FAISS because it supports metadata filtering
   (filter by city, category, season) which is critical for travel context.
 - Persistent storage so embeddings survive restarts.
-- Uses sentence-transformers (all-MiniLM-L6-v2) for free, local embeddings.
+- Uses Cohere embeddings API (embed-english-v3.0) — lightweight, no PyTorch needed,
+  and we already have a Cohere API key for reranking.
 """
 
 import chromadb
 from chromadb.config import Settings
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_cohere import CohereEmbeddings
 
 from typing import Any
 
-from config import CHROMA_PERSIST_DIR, CHROMA_COLLECTION_NAME, EMBEDDING_MODEL
+from config import CHROMA_PERSIST_DIR, CHROMA_COLLECTION_NAME, COHERE_API_KEY
 
 
-_embedding_fn: HuggingFaceEmbeddings | None = None
+_embedding_fn: CohereEmbeddings | None = None
 _chroma_client: Any = None
 
 
-def get_embedding_function() -> HuggingFaceEmbeddings:
-    """Singleton embedding model — loaded once, reused across calls."""
+def get_embedding_function() -> CohereEmbeddings:
+    """Singleton Cohere embedding model — loaded once, reused across calls."""
     global _embedding_fn
     if _embedding_fn is None:
-        _embedding_fn = HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODEL,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
+        _embedding_fn = CohereEmbeddings(
+            cohere_api_key=COHERE_API_KEY,
+            model="embed-english-v3.0",
         )
     return _embedding_fn
 
