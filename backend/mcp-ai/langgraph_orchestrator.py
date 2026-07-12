@@ -281,6 +281,33 @@ class LangGraphOrchestrator:
             self.pub_connection.close()
 
 
+def start_health_server():
+    import os
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    
+    class HealthHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status": "ok"}')
+            
+        def log_message(self, format, *args):
+            return
+
+    port = int(os.getenv("PORT", "10000"))
+    try:
+        server = HTTPServer(("0.0.0.0", port), HealthHandler)
+        print(f" [Health Server] ✅ Listening on port {port} for Render health checks...")
+        server.serve_forever()
+    except Exception as e:
+        print(f" [Health Server] ⚠️ Failed to start: {e}")
+
+
 if __name__ == "__main__":
+    import threading
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
+
     orchestrator = LangGraphOrchestrator()
     orchestrator.start()
