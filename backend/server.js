@@ -51,8 +51,10 @@ const allowedOrigins = [
   "http://localhost:5174",
   "http://127.0.0.1:5174",
   "http://localhost:5175",
-  "http://127.0.0.1:5175"
-];
+  "http://127.0.0.1:5175",
+  "https://the-ringmasters-roundtable-wine.vercel.app",
+  process.env.FRONTEND_URL
+].filter(Boolean);
 // --- SOCKET.IO CONFIGURATION ---
 const io = new Server(server, {
   path: "/socket.io/",
