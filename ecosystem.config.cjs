@@ -1,7 +1,11 @@
 // PM2 Process Manager Configuration
+// Architecture: 3 processes instead of 8
+//   - backend      : Node.js Express + Socket.IO API server (port 3001)
+//   - langgraph    : Single Python process with LangGraph pipeline + all AI agents
+//   - frontend     : Vite dev server (port 5173/5174)
 module.exports = {
   apps: [
-    // Backend Server - Start this first
+    // 1. Backend Server
     {
       name: "backend",
       script: "server.js",
@@ -12,109 +16,47 @@ module.exports = {
         PORT: 3001,
         RABBITMQ_URL: "amqp://localhost"
       },
-      error_file: "./logs/backend-error.log",
-      out_file: "./logs/backend-out.log",
+      error_file: "./backend/logs/backend-error.log",
+      out_file: "./backend/logs/backend-out.log",
       time: true,
       wait_ready: true,
       listen_timeout: 10000,
       kill_timeout: 5000
     },
-    // Python Agents - Start these after backend is ready
+    // 2. LangGraph Orchestrator — replaces 6 individual MCP agent processes.
+    //    This single process handles: Supervisor, Map, Weather, Itinerary,
+    //    Events, Budget, Critic, and the Chat Agent via LangGraph StateGraph.
     {
-      name: "orchestrator",
+      name: "langgraph",
       interpreter: "./backend/mcp-ai/venv/bin/python",
-      script: "./backend/mcp-ai/orchestrator_mcp.py",
-      watch: ["./backend/mcp-ai/orchestrator_mcp.py"],
-      error_file: "./logs/orchestrator-error.log",
-      out_file: "./logs/orchestrator-out.log",
-      time: true,
-      wait_ready: false,
-      autorestart: true,
-      env: {
-        PYTHONPATH: "./backend/mcp-ai"
-      }
-    },
-    {
-      name: "map-agent",
-      interpreter: "./backend/mcp-ai/venv/bin/python",
-      script: "./backend/mcp-ai/map_agent_mcp.py",
+      script: "./backend/mcp-ai/langgraph_orchestrator.py",
       watch: [
-        "./backend/mcp-ai/map_agent_mcp.py",
-        "./backend/mcp-ai/map_agent.py"
+        "./backend/mcp-ai/langgraph_orchestrator.py",
+        "./backend/mcp-ai/graph.py",
+        "./backend/mcp-ai/agents",
+        "./backend/mcp-ai/rag"
       ],
-      error_file: "./logs/map-agent-error.log",
-      out_file: "./logs/map-agent-out.log",
+      error_file: "./logs/langgraph-error.log",
+      out_file: "./logs/langgraph-out.log",
       time: true,
       autorestart: true,
       env: {
         PYTHONPATH: "./backend/mcp-ai"
       }
     },
-    {
-      name: "weather-agent",
-      interpreter: "./backend/mcp-ai/venv/bin/python",
-      script: "./backend/mcp-ai/weather_agent_mcp.py",
-      watch: [
-        "./backend/mcp-ai/weather_agent_mcp.py",
-        "./backend/mcp-ai/weather_agent.py"
-      ],
-      error_file: "./logs/weather-agent-error.log",
-      out_file: "./logs/weather-agent-out.log",
-      time: true,
-      autorestart: true,
-      env: {
-        PYTHONPATH: "./backend/mcp-ai"
-      }
-    },
-    {
-      name: "itinerary-agent",
-      interpreter: "./backend/mcp-ai/venv/bin/python",
-      script: "./backend/mcp-ai/itinerary_agent_mcp.py",
-      watch: [
-        "./backend/mcp-ai/itinerary_agent_mcp.py",
-        "./backend/mcp-ai/itinerary_agent.py"
-      ],
-      error_file: "./logs/itinerary-agent-error.log",
-      out_file: "./logs/itinerary-agent-out.log",
-      time: true,
-      autorestart: true,
-      env: {
-        PYTHONPATH: "./backend/mcp-ai"
-      }
-    },
-    {
-      name: "event-agent",
-      interpreter: "./backend/mcp-ai/venv/bin/python",
-      script: "./backend/mcp-ai/event_agent_mcp.py",
-      watch: [
-        "./backend/mcp-ai/event_agent_mcp.py",
-        "./backend/mcp-ai/event_agent.py"
-      ],
-      error_file: "./logs/event-agent-error.log",
-      out_file: "./logs/event-agent-out.log",
-      time: true,
-      autorestart: true,
-      env: {
-        PYTHONPATH: "./backend/mcp-ai"
-      }
-    },
-    // Frontend - Start this last
+    // 3. Frontend Dev Server
     {
       name: "frontend",
       script: "npm",
       args: "run dev",
       cwd: ".",
-      watch: ["src", "public"],
+      watch: false,
       env: {
-        NODE_ENV: "development",
-        PORT: 5173,
-        VITE_API_URL: "http://localhost:3001"
+        NODE_ENV: "development"
       },
       error_file: "./logs/frontend-error.log",
       out_file: "./logs/frontend-out.log",
       time: true,
-      wait_ready: true,
-      listen_timeout: 10000,
       autorestart: true
     }
   ]

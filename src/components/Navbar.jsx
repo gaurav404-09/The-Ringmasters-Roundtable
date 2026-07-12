@@ -10,6 +10,7 @@ import {
   FaSignInAlt,
   FaSignOutAlt,
   FaChevronDown,
+  FaChartBar,
 } from 'react-icons/fa';
 import { GiCrystalBall } from 'react-icons/gi';
 import { WiDaySunny } from 'react-icons/wi';
@@ -38,6 +39,7 @@ const NAV_STRUCTURE = [
       { key: 'compare', name: 'Compare', path: '/compare', icon: FaBalanceScale },
       { key: 'budget', name: 'Budget', path: '/budget', icon: FaMoneyBillWave },
       { key: 'crystal', name: 'Crystal Ball', path: '/crystal-ball', icon: GiCrystalBall },
+      { key: 'analytics', name: 'Analytics', path: '/analytics', icon: FaChartBar },
     ],
   },
   { key: 'plan', type: 'cta', name: 'Plan Trip', path: '/planner', icon: FaRoute },

@@ -52,14 +52,13 @@ Rules:
 - Do not include markdown or additional text outside the JSON array.`;
 
     try {
-      const response = await this.client.responses.create({
+      const response = await this.client.chat({
         model: "command-r-08-2024",
-        input: prompt,
+        message: prompt,
         temperature: 0.4,
-        max_tokens: 800
       });
 
-      const output = response?.output_text?.trim();
+      const output = response?.text?.trim();
       const parsed = await this.extractEventsFromOutput(output, normalizedCity, normalizedCategory);
       if (parsed?.length) {
         return parsed;

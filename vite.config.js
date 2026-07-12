@@ -13,12 +13,12 @@ export default defineConfig(({ mode }) => {
     server: {
       headers: {
         "Content-Security-Policy": [
-          "default-src 'self' http://localhost:5173 http://127.0.0.1:5173 http://localhost:3000;",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' 'inline-speculation-rules' data: blob: http://localhost:5173 http://127.0.0.1:5173 https://apis.google.com https://www.gstatic.com https://identitytoolkit.googleapis.com;",
+          "default-src 'self' http://localhost:5173 http://127.0.0.1:5173 http://localhost:5174 http://127.0.0.1:5174 http://localhost:5175 http://127.0.0.1:5175 http://localhost:3000 http://localhost:3001;",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' 'inline-speculation-rules' data: blob: http://localhost:5173 http://127.0.0.1:5173 http://localhost:5174 http://127.0.0.1:5174 http://localhost:5175 http://127.0.0.1:5175 https://apis.google.com https://www.gstatic.com https://identitytoolkit.googleapis.com;",
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;",
           "font-src 'self' https://fonts.gstatic.com data:;",
           "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://images.unsplash.com;",
-          "connect-src 'self' ws://localhost:5173 ws://127.0.0.1:5173 ws://localhost:3000 ws://127.0.0.1:3000 http://localhost:3000 http://127.0.0.1:3000 https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://lottie.host https://apis.google.com https://www.gstatic.com https://api.openweathermap.org https://tile.openweathermap.org;",
+          "connect-src 'self' ws://localhost:5173 ws://127.0.0.1:5173 ws://localhost:5174 ws://127.0.0.1:5174 ws://localhost:5175 ws://127.0.0.1:5175 ws://localhost:3000 ws://127.0.0.1:3000 ws://localhost:3001 ws://127.0.0.1:3001 http://localhost:3000 http://127.0.0.1:3000 http://localhost:3001 http://127.0.0.1:3001 https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://lottie.host https://apis.google.com https://www.gstatic.com https://api.openweathermap.org https://tile.openweathermap.org;",
           "frame-src 'self' https://apis.google.com https://www.gstatic.com https://*.firebaseapp.com;",
           "worker-src 'self' blob:;",
           "media-src 'self' https://*.tile.openstreetmap.org;",

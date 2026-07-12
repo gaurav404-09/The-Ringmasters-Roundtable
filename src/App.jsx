@@ -17,8 +17,8 @@ import PlanTrip from './pages/PlanTrip';
 import Dashboard from './pages/Dashboard';
 import Community from './pages/Community';
 import CrystalBall from './pages/CrystalBall';
-
-
+import Analytics from './pages/Analytics';
+import Chatbot from './components/Chatbot';
 function App() {
   const location = useLocation();
 
@@ -39,6 +39,7 @@ function App() {
             <Route path="/trip-summary" element={<TripSummary />} />
             <Route path="/community" element={<Community />} />
             <Route path="/crystal-ball" element={<CrystalBall />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route
               path="/planner"
               element={
@@ -58,6 +59,7 @@ function App() {
             <Route path="/auth" element={<AuthPage />} />
           </Routes>
         </AnimatePresence>
+        <Chatbot />
       </main>
     </div>
   );

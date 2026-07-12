@@ -26,6 +26,7 @@ import { getFlights, getHotels } from './services/amadeus.js';
 import { getTrains } from './services/trains.js';
 import { findCheapestTrip } from './services/optimizer.js';
 import crystalBallRoutes from './routes/crystalBallRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,7 +45,14 @@ const ENABLE_RABBITMQ = process.env.ENABLE_RABBITMQ === 'true';
 const clientDistPath = path.join(__dirname, "client", "dist");
 const hasClientBuild = fs.existsSync(clientDistPath);
 
-const allowedOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+  "http://localhost:5175",
+  "http://127.0.0.1:5175"
+];
 // --- SOCKET.IO CONFIGURATION ---
 const io = new Server(server, {
   path: "/socket.io/",
@@ -105,6 +113,8 @@ app.use('/api', nearbyRoutes);
 app.use('/api', crystalBallRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/opportunities', opportunityRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
 }
@@ -161,6 +171,8 @@ async function connectRabbitMQ() {
         await channel.assertQueue('trip_requests_queue', { durable: true });
         await channel.assertQueue('trip_status_queue', { durable: true });
         await channel.assertQueue('trip_results_queue', { durable: true });
+        await channel.assertQueue('chat_requests_queue', { durable: true });
+        await channel.assertQueue('chat_responses_queue', { durable: true });
 
         // Listener for STATUS updates from the Python orchestrator
         channel.consume('trip_status_queue', (msg) => {
@@ -177,12 +189,32 @@ async function connectRabbitMQ() {
         channel.consume('trip_results_queue', (msg) => {
             if (msg !== null) {
                 const result = JSON.parse(msg.content.toString());
-                const { trip_id } = result;
+                const { trip_id, client_sid } = result;
                 console.log(` [Server] Received final result for trip ${trip_id}`);
+                
+                let targetSid = null;
                 if (tripSubscribers.has(trip_id)) {
-                    const clientSid = tripSubscribers.get(trip_id);
-                    io.to(clientSid).emit('trip_result', result);
+                    targetSid = tripSubscribers.get(trip_id);
                     tripSubscribers.delete(trip_id); // Clean up
+                } else if (client_sid) {
+                    targetSid = client_sid;
+                }
+
+                if (targetSid) {
+                    io.to(targetSid).emit('trip_result', result);
+                } else {
+                    console.log(` [Server] Warning: No subscriber found for trip ${trip_id}`);
+                }
+                channel.ack(msg);
+            }
+        });
+        
+        // Listener for CHAT responses from the Python orchestrator
+        channel.consume('chat_responses_queue', (msg) => {
+            if (msg !== null) {
+                const response = JSON.parse(msg.content.toString());
+                if (response.client_sid) {
+                    io.to(response.client_sid).emit('chat_reply', { message: response.message });
                 }
                 channel.ack(msg);
             }
@@ -266,6 +298,29 @@ io.on('connection', (socket) => {
               error: 'Failed to queue trip request',
               message: 'RabbitMQ accepted the connection but queueing failed. Check server logs.'
             });
+        }
+    });
+
+    // Handle chat messages from the frontend Chatbot
+    socket.on('chat_message', async (data) => {
+        if (!ENABLE_RABBITMQ) return;
+        const channel = await ensureRabbitMQ();
+        if (!channel) return;
+
+        const message = {
+            client_sid: socket.id,
+            text: data.text,
+        };
+
+        try {
+            channel.sendToQueue(
+              'chat_requests_queue',
+              Buffer.from(JSON.stringify(message)),
+              { persistent: true }
+            );
+            console.log(` [Server] Sent chat message from ${socket.id} to orchestrator.`);
+        } catch (error) {
+            console.error(' [Server] Failed to enqueue chat message:', error.message);
         }
     });
 
