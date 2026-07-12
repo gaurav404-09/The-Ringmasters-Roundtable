@@ -22,7 +22,7 @@ import json
 import threading
 import pika
 
-from config import RABBITMQ_HOST, RABBITMQ_PORT
+from config import RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_URL
 from graph import plan_trip
 from observability.tracer import trace_trip_planning, log_event
 
@@ -38,9 +38,12 @@ class LangGraphOrchestrator:
     """
 
     def __init__(self):
-        self.connection_params = pika.ConnectionParameters(
-            host=RABBITMQ_HOST, port=RABBITMQ_PORT
-        )
+        if RABBITMQ_URL:
+            self.connection_params = pika.URLParameters(RABBITMQ_URL)
+        else:
+            self.connection_params = pika.ConnectionParameters(
+                host=RABBITMQ_HOST, port=RABBITMQ_PORT
+            )
 
         # Publishing connection (for sending results/status)
         self.pub_connection = pika.BlockingConnection(self.connection_params)

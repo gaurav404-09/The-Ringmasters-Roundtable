@@ -47,6 +47,7 @@ MCP_SERVER_VERSION = "1.0.0"
 # ─── RabbitMQ Configuration ──────────────────────────────────────────
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
+RABBITMQ_URL = os.getenv("RABBITMQ_URL", "")
 
 # ─── Observability Configuration ─────────────────────────────────────
 ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
