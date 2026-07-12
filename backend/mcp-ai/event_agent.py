@@ -20,7 +20,7 @@ class EventAgent:
             print(" [EventAgent] WARNING: Cohere API key not found. Using fallback data.")
             self.client = None
         else:
-            self.client = cohere.Client(COHERE_API_KEY)
+            self.client = cohere.Client(COHERE_API_KEY, timeout=15)
 
     def get_event_image_url(self, keywords="event"):
         if not UNSPLASH_ACCESS_KEY:
@@ -63,12 +63,11 @@ class EventAgent:
         ]
         """
         try:
-            response = self.client.chat(model="command", message=prompt, temperature=0.6)
+            response = self.client.chat(model="command-r-08-2024", message=prompt, temperature=0.6)
             json_text = re.search(r'\[.*\]', response.text, re.DOTALL)
 
             if not json_text:
-                print(" [EventAgent] Cohere response did not contain a valid JSON array.")
-                return self.get_fallback_events(city)
+                raise ValueError("Cohere response did not contain a valid JSON array.")
 
             parsed_events = json.loads(json_text.group(0))
             if not isinstance(parsed_events, list):
@@ -92,20 +91,13 @@ class EventAgent:
                 cleaned_events.append(cleaned)
 
             if len(cleaned_events) < 3:
-                fallback_events = self.get_fallback_events(city)
-                existing_titles = {event['title'].lower() for event in cleaned_events}
-                for fallback in fallback_events:
-                    if fallback['title'].lower() in existing_titles:
-                        continue
-                    cleaned_events.append(fallback)
-                    existing_titles.add(fallback['title'].lower())
-                    if len(cleaned_events) >= 3:
-                        break
+                # If we got fewer than 3 events from LLM, raise error to be transparent
+                raise ValueError(f"Cohere returned only {len(cleaned_events)} valid events, expected 3.")
 
             if len(cleaned_events) > 3:
                 cleaned_events = cleaned_events[:3]
 
-            return cleaned_events if cleaned_events else self.get_fallback_events(city)
+            return cleaned_events
         except Exception as e:
-            print(f" [EventAgent] Cohere API Error: {e}")
+            print(f" [EventAgent] Cohere API Error: {e}, using fallback events...")
             return self.get_fallback_events(city)

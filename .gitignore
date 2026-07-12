@@ -1,6 +1,7 @@
 # Dependency directories
 node_modules/
 backend/venv/
+backend/mcp-ai/venv/
 venv/
 .venv/
 **/__pycache__/
@@ -12,7 +13,10 @@ build/
 .cache/
 coverage/
 
-# Local environment files (keep `.env` tracked)
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 
@@ -37,6 +41,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Debug artifacts
+debug-response.json
+
+# Python version lock (Render should control this)
+backend/mcp-ai/.python-version
+
+# Large zip files
+*.zip
 
 
 
