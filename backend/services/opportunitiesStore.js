@@ -162,15 +162,22 @@ export const getNewOpportunitiesForUser = async (userId) => {
   let result;
   
   if (firestore) {
-    const collectionRef = firestore.collection(COLLECTION_NAME);
-    const snapshot = await collectionRef
-      .where('userId', '==', userId)
-      .where('status', '==', DEFAULT_STATUS)
-      .orderBy('createdAt', 'desc')
-      .limit(MAX_OPPORTUNITIES_PER_USER)
-      .get();
-    result = snapshot.docs.map((doc) => doc.data());
-    console.log(`[getNewOpportunitiesForUser] Fetched from Firestore: ${result.length} opportunities (${snapshot.docs.length} reads used)`);
+    try {
+      const collectionRef = firestore.collection(COLLECTION_NAME);
+      const snapshot = await collectionRef
+        .where('userId', '==', userId)
+        .where('status', '==', DEFAULT_STATUS)
+        .orderBy('createdAt', 'desc')
+        .limit(MAX_OPPORTUNITIES_PER_USER)
+        .get();
+      result = snapshot.docs.map((doc) => doc.data());
+      console.log(`[getNewOpportunitiesForUser] Fetched from Firestore: ${result.length} opportunities (${snapshot.docs.length} reads used)`);
+    } catch (error) {
+      console.warn('[getNewOpportunitiesForUser] Firestore query failed (possibly missing index), falling back to JSON storage:', error.message);
+      const store = await readStore();
+      const userList = store[userId] || [];
+      result = userList.filter((item) => item.status === DEFAULT_STATUS);
+    }
   } else {
     console.log('[getNewOpportunitiesForUser] Using JSON fallback for userId:', userId);
     const store = await readStore();

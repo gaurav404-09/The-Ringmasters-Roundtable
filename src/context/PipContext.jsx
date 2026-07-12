@@ -81,6 +81,11 @@ export const PipProvider = ({ children }) => {
       pollingRef.current = null;
     }
 
+    if (import.meta.env.VITE_PIP_AGENT_ENABLED !== 'true') {
+      console.log('[PipProvider] Pip Agent is disabled by default.');
+      return undefined;
+    }
+
     if (!user?.uid) {
       resetQueue();
       seenOpportunitiesRef.current.clear(); // Clear seen tracking on logout
