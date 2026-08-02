@@ -1,0 +1,233 @@
+{
+  "A": {
+    "logs": [
+      "{\n  \"timestamp\": \"2026-08-01T05:50:30.622Z\",\n  \"step\": \"Planner Agent\",\n  \"input\": {\n    \"startCity\": \"Chennai\",\n    \"endCity\": \"Mysore\",\n    \"totalDistanceKm\": 468,\n    \"criticFeedbackStr\": \"\"\n  },\n  \"output\": [\n    {\n      \"city\": \"Chennai\",\n      \"days\": 1,\n      \"type\": \"stop\"\n    },\n    {\n      \"city\": \"Bangalore\",\n      \"days\": 1,\n      \"type\": \"stop\"\n    },\n    {\n      \"city\": \"Mysore\",\n      \"days\": 2,\n      \"type\": \"base\"\n    }\n  ],\n  \"error\": null,\n  \"latencyMs\": 2664\n}",
+      "{\n  \"timestamp\": \"2026-08-01T05:50:32.167Z\",\n  \"step\": \"Critic Agent\",\n  \"input\": [\n    {\n      \"city\": \"Chennai\",\n      \"days\": 1,\n      \"type\": \"stop\"\n    },\n    {\n      \"city\": \"Bangalore\",\n      \"days\": 1,\n      \"type\": \"stop\"\n    },\n    {\n      \"city\": \"Mysore\",\n      \"days\": 2,\n      \"type\": \"base\"\n    }\n  ],\n  \"output\": {\n    \"approved\": true,\n    \"reason\": null,\n    \"details\": null,\n    \"suggestedFix\": null\n  },\n  \"error\": null,\n  \"latencyMs\": 1542\n}",
+      "{\n  \"timestamp\": \"2026-08-01T05:50:44.234Z\",\n  \"step\": \"Firestore Persistence\",\n  \"input\": {\n    \"tripId\": \"test_A\"\n  },\n  \"output\": null,\n  \"error\": \"Failed to persist trip to Firestore: The default Firebase app does not exist. Make sure you call initializeApp() before using any of the Firebase services.\",\n  \"latencyMs\": null\n}"
+    ],
+    "ui": [
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🚀 Initializing Multi-Agent Pipeline: Chennai → Mysore (4 days)"
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🌍 Fetching real routing data between Chennai and Mysore..."
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "📏 Real distance confirmed: 468km"
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🗺️ Planner Agent: Drafting route (Attempt 1)..."
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "📍 Planner proposed: Chennai (1d, stop) ➔ Bangalore (1d, stop) ➔ Mysore (2d, base)"
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🤔 Critic Agent: Evaluating feasibility of route with live OSRM mapping..."
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "✅ Critic Agent: Approved route!"
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "✨ Constructing Deterministic Schedule: Fetching live API data for all stops..."
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🔍 Fetching Attractions, Restaurants & Weather for Chennai (Base)..."
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🔍 Fetching Attractions, Restaurants & Weather for Bangalore (Base)..."
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🔍 Fetching Attractions, Restaurants & Weather for Mysore (Base)..."
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🎉 Deterministic scheduling complete! Sending tailored itinerary..."
+        }
+      },
+      {
+        "event": "trip_result",
+        "data": {
+          "trip_id": "test_A",
+          "client_sid": "mock_socket_123",
+          "start_city": "Chennai",
+          "end_city": "Mysore",
+          "start_date": "2026-08-01",
+          "end_date": "2026-08-04",
+          "num_days": 4,
+          "transport_mode": "train_flight",
+          "itinerary": [
+            {
+              "day": 1,
+              "date": "2026-08-01",
+              "city": "Chennai",
+              "type": "base",
+              "baseCity": "Chennai",
+              "weather": {
+                "temp": 28,
+                "weather": "Clear"
+              },
+              "activities": [
+                {
+                  "time": "09:30 AM",
+                  "title": "Morning Visit to George Town",
+                  "notes": "George Town is a popular yes worth visiting."
+                },
+                {
+                  "time": "02:00 PM",
+                  "title": "Afternoon at Chola Sheraton",
+                  "notes": "Chola Sheraton is a popular hotel worth visiting."
+                },
+                {
+                  "time": "07:30 PM",
+                  "title": "Dinner at Novelty",
+                  "notes": "Local cuisine"
+                }
+              ]
+            },
+            {
+              "day": 2,
+              "date": "2026-08-02",
+              "city": "Bangalore",
+              "type": "base",
+              "baseCity": "Bangalore",
+              "weather": {
+                "temp": 28,
+                "weather": "Clear"
+              },
+              "activities": [
+                {
+                  "time": "09:30 AM",
+                  "title": "Morning Visit to Chickpet Cross",
+                  "notes": "Chickpet Cross is a popular attraction worth visiting."
+                },
+                {
+                  "time": "02:00 PM",
+                  "title": "Afternoon at Lalbagh Glasshouse",
+                  "notes": "Lalbagh Glasshouse is a popular attraction worth visiting."
+                },
+                {
+                  "time": "07:30 PM",
+                  "title": "Dinner at Sukh Sagar",
+                  "notes": "Local cuisine"
+                }
+              ]
+            },
+            {
+              "day": 3,
+              "date": "2026-08-03",
+              "city": "Mysore",
+              "type": "base",
+              "baseCity": "Mysore",
+              "weather": {
+                "temp": 28,
+                "weather": "Clear"
+              },
+              "activities": [
+                {
+                  "time": "09:30 AM",
+                  "title": "Morning Visit to JWGC",
+                  "notes": "JWGC is a popular golf_course worth visiting."
+                },
+                {
+                  "time": "02:00 PM",
+                  "title": "Afternoon at Pai Vista",
+                  "notes": "Pai Vista is a popular hotel worth visiting."
+                },
+                {
+                  "time": "07:30 PM",
+                  "title": "Dinner at Cafe Coffee Day",
+                  "notes": "Serving indian cuisine"
+                }
+              ]
+            },
+            {
+              "day": 4,
+              "date": "2026-08-04",
+              "city": "Mysore",
+              "type": "base",
+              "baseCity": "Mysore",
+              "weather": {
+                "temp": 28,
+                "weather": "Clear"
+              },
+              "activities": [
+                {
+                  "time": "09:30 AM",
+                  "title": "Morning Visit to Metropole",
+                  "notes": "Metropole is a popular hotel worth visiting."
+                },
+                {
+                  "time": "02:00 PM",
+                  "title": "Afternoon at Regaalis, Mysore",
+                  "notes": "Regaalis, Mysore is a popular hotel worth visiting."
+                },
+                {
+                  "time": "07:30 PM",
+                  "title": "Dinner at Hotel Mahesh Prasad",
+                  "notes": "Serving indian cuisine"
+                }
+              ]
+            }
+          ],
+          "events": {}
+        }
+      },
+      {
+        "event": "status_update",
+        "data": {
+          "message": "🚨 Persistence Error: Could not save trip data to database (but trip was delivered successfully)."
+        }
+      }
+    ],
+    "error": "Failed to persist trip to Firestore: The default Firebase app does not exist. Make sure you call initializeApp() before using any of the Firebase services."
+  },
+  "B": {
+    "logs": [],
+    "ui": [],
+    "error": null
+  },
+  "D": {
+    "logs": [],
+    "ui": [],
+    "error": null
+  },
+  "C": {
+    "logs": [],
+    "ui": [],
+    "error": null
+  }
+}

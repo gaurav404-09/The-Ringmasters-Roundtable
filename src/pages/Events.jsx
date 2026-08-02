@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTripContext } from '../context/TripContext';
 
 const gradientPalettes = [
   "from-emerald-400/40 via-cyan-400/30 to-indigo-500/30",
@@ -42,27 +43,23 @@ const parseDateTime = (date, time) => {
 };
 
 export default function EventRecommendations() {
+  const { activeTrip } = useTripContext();
   const [city, setCity] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!city.trim()) return;
-
+  const fetchEvents = async (cityName, sDate, eDate) => {
+    if (!cityName?.trim()) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        city: city.trim(),
-        ...(startDate && { startDate }),
-        ...(endDate && { endDate }),
+        city: cityName.trim(),
+        ...(sDate && { startDate: sDate }),
+        ...(eDate && { endDate: eDate }),
       });
-
-      const res = await fetch(
-        `http://localhost:3000/api/events?${params.toString()}`
-      );
+      const res = await fetch(`http://localhost:3000/api/events?${params.toString()}`);
       const data = await res.json();
       setEvents(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -72,15 +69,20 @@ export default function EventRecommendations() {
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    fetchEvents(city, startDate, endDate);
+  };
+
+  // Auto-populate from active trip
   useEffect(() => {
-    setEndDate((prev) => {
-      if (!prev) return prev;
-      if (startDate && new Date(prev) < new Date(startDate)) {
-        return startDate;
-      }
-      return prev;
-    });
-  }, [startDate]);
+    if (activeTrip?.destination) {
+      setCity(activeTrip.destination);
+      if (activeTrip.departureDate) setStartDate(activeTrip.departureDate);
+      fetchEvents(activeTrip.destination, activeTrip.departureDate || '', '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTrip?.destination]);
 
   const today = new Date().toISOString().split("T")[0];
   const nextMonth = new Date();
@@ -155,6 +157,12 @@ export default function EventRecommendations() {
               </p>
 
               <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+                {activeTrip?.destination && (
+                  <div className="flex items-center gap-2 rounded-2xl border border-emerald-400/25 bg-emerald-400/8 px-4 py-3 text-sm text-emerald-200">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                    Loaded events for your active trip · <strong>{activeTrip.destination}</strong>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <label className="md:col-span-2">
                     <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.35em] text-white/60">

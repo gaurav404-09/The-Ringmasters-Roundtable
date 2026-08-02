@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { io } from 'socket.io-client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
   Sparkles, Bot, User, MapPin, CalendarRange, Route, Share2, Send,
-  Loader2, ChevronDown,
+  Loader2, ChevronDown, ArrowRight,
 } from 'lucide-react';
 import ENV from '../config/env';
 import { useAuth } from '../context/AuthContext';
+import { useTripContext } from '../context/TripContext';
+import { useSocket } from '../context/SocketContext';
 import { saveUserTrip } from '../lib/apiClient';
 import BudgetSummary from '../components/ui/BudgetSummary.jsx';
 
@@ -29,6 +30,37 @@ const countEvents = (events = {}) =>
   Object.values(events).reduce((total, cityEvents) => total + (cityEvents?.length || 0), 0);
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+/**
+ * Simple markdown renderer for bot messages.
+ * Handles **bold**, *italic*, `code`, newlines, and - bullet lists.
+ */
+const renderMarkdown = (text) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    // Replace **bold**
+    let parts = line.split(/\*\*(.+?)\*\*/g).map((part, j) =>
+      j % 2 === 1 ? <strong key={j} className="font-semibold text-white">{part}</strong> : part
+    );
+    // Replace *italic*
+    parts = parts.flatMap((part, j) => {
+      if (typeof part !== 'string') return [part];
+      return part.split(/\*(.+?)\*/g).map((p, k) =>
+        k % 2 === 1 ? <em key={`${j}-${k}`} className="italic text-white/90">{p}</em> : p
+      );
+    });
+    // Bullet list item
+    const isBullet = line.trimStart().startsWith('- ');
+    return (
+      <span key={i}>
+        {isBullet && <span className="mr-1 text-emerald-400">•</span>}
+        {parts}
+        {i < lines.length - 1 && <br />}
+      </span>
+    );
+  });
+};
 
 /**
  * A single chat bubble, styled differently for user vs bot messages.
@@ -73,29 +105,57 @@ const ChatBubble = ({ msg }) => {
             : 'rounded-bl-sm border border-white/10 bg-white/5 text-white/90 backdrop-blur'
         }`}
       >
-        {msg.text}
+        {isUser ? msg.text : renderMarkdown(msg.text)}
       </div>
     </div>
   );
 };
 
 /**
- * Animated typing indicator for bot responses in progress.
+ * Animated typing indicator — shows rotating status phrases so it doesn't look frozen.
  */
-const TypingIndicator = () => (
-  <div className="flex items-end gap-3">
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-emerald-400/30 bg-gradient-to-br from-emerald-500/30 to-teal-500/20">
-      <Bot className="h-4 w-4 text-emerald-300" />
-    </div>
-    <div className="rounded-2xl rounded-bl-sm border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-      <div className="flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.3s]" />
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.15s]" />
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" />
+const THINKING_PHRASES = [
+  'Agent ensemble waking up…',
+  'Weather scout checking forecasts…',
+  'Budget quartermaster crunching fares…',
+  'Route conductor mapping paths…',
+  'Events radar scanning venues…',
+  'Itinerary architect drafting days…',
+  'Critic agent reviewing the plan…',
+  'Almost ready — assembling your trip…',
+];
+
+const TypingIndicator = ({ planning }) => {
+  const [phraseIndex, setPhraseIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!planning) return;
+    const timer = setInterval(() => setPhraseIndex(i => (i + 1) % THINKING_PHRASES.length), 3500);
+    return () => clearInterval(timer);
+  }, [planning]);
+
+  return (
+    <div className="flex items-end gap-3">
+      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-emerald-400/30 bg-gradient-to-br from-emerald-500/30 to-teal-500/20">
+        <Bot className="h-4 w-4 text-emerald-300" />
+      </div>
+      <div className="rounded-2xl rounded-bl-sm border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.3s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.15s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" />
+          </div>
+          {planning && (
+            <span className="text-[11px] text-emerald-300/80 transition-all duration-500">
+              {THINKING_PHRASES[phraseIndex]}
+            </span>
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /**
  * Floating agent log panel that appears during trip planning.
@@ -286,7 +346,9 @@ const ItineraryShowcase = ({ result, transportMode }) => {
                 <h3 className="mt-1 text-xl font-semibold text-white">{day.city}</h3>
               </div>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white/60">
-                {day.weather?.temp}°C · {day.weather?.weather}
+                {day.weather?.available === false 
+                  ? day.weather.weather 
+                  : `${day.weather?.temp}°C · ${day.weather?.weather}`}
               </span>
             </div>
 
@@ -356,12 +418,13 @@ const INITIAL_MESSAGES = [
 const PlanTrip = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { activeTrip, setActiveTrip } = useTripContext();
 
   // Chat state
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [socket, setSocket] = useState(null);
+  const socket = useSocket();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -377,41 +440,32 @@ const PlanTrip = () => {
 
   // ── Socket.IO setup ────────────────────────────────────────────────────────
   useEffect(() => {
-    const newSocket = io(ENV.WS_URL, {
-      path: '/socket.io/',
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      transports: ['polling', 'websocket'],
-      upgrade: true,
-    });
+    if (!socket) return;
 
-    setSocket(newSocket);
-
-    newSocket.on('connect_error', (error) => {
+    // Connect error is managed globally now, but we can listen if needed.
+    const handleConnectError = (error) => {
       setMessages((prev) => [
         ...prev,
         { role: 'bot', text: `⚠️ Connection error: ${error.message}. Please refresh the page.` },
       ]);
-    });
-
+    };
+    
     // Chat reply from the LLM travel concierge
-    newSocket.on('chat_reply', (data) => {
+    const handleChatReply = (data) => {
       setIsTyping(false);
       setMessages((prev) => [...prev, { role: 'bot', text: data.message }]);
-    });
-
+    };
+    
     // Live status updates during orchestration
-    newSocket.on('status_update', (data) => {
+    const handleStatusUpdate = (data) => {
       if (!data?.message) return;
       setLogs((prev) => {
         if (prev.includes(data.message)) return prev;
         return [...prev, data.message];
       });
 
-      const isPlanningStart = data.message.includes('Starting AI-powered trip planning');
-      const isPlanningFailure =
-        data.message.includes('❌') || data.message.toLowerCase().includes('failed');
+      const isPlanningStart = data.stage === 'start';
+      const isPlanningFailure = data.stage === 'error';
 
       if (isPlanningStart) {
         setPlanning(true);
@@ -423,20 +477,30 @@ const PlanTrip = () => {
           { role: 'bot', text: '❌ Trip planning encountered an issue. Please try again.' },
         ]);
       }
-    });
-
+    };
+    
     // Final trip result received
-    newSocket.on('trip_result', (data) => {
+    const handleTripResult = (data) => {
       setIsTyping(false);
       setPlanning(false);
       setResult(data);
-      setTripMeta({
+      const meta = {
         from: data.start_city || data.startCity || '',
         to: data.end_city || data.endCity || '',
         startDate: data.start_date || data.startDate || '',
         endDate: data.end_date || data.endDate || '',
         numDays: data.num_days || data.numDays || 0,
         transportMode: data.transport_mode || data.transportMode || 'train_flight',
+      };
+      setTripMeta(meta);
+      // ── Persist to global TripContext so all pages auto-populate ──
+      setActiveTrip({
+        origin: meta.from,
+        destination: meta.to,
+        departureDate: meta.startDate,
+        days: meta.numDays,
+        itinerary: data.itinerary || [],
+        events: data.events || {},
       });
       setMessages((prev) => [
         ...prev,
@@ -449,10 +513,20 @@ const PlanTrip = () => {
       setTimeout(() => setLogPanelVisible(false), 3000);
       // Smooth scroll to results
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 500);
-    });
+    };
 
-    return () => newSocket.close();
-  }, []);
+    socket.on('connect_error', handleConnectError);
+    socket.on('chat_reply', handleChatReply);
+    socket.on('status_update', handleStatusUpdate);
+    socket.on('trip_result', handleTripResult);
+
+    return () => {
+      socket.off('connect_error', handleConnectError);
+      socket.off('chat_reply', handleChatReply);
+      socket.off('status_update', handleStatusUpdate);
+      socket.off('trip_result', handleTripResult);
+    };
+  }, [socket, setActiveTrip]);
 
   // ── Auto-scroll chat ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -541,6 +615,23 @@ const PlanTrip = () => {
           </p>
         </div>
 
+        {/* ── Active trip context banner ───────────────────────────────── */}
+        {activeTrip?.origin && activeTrip?.destination && !result && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-400/25 bg-cyan-400/8 px-5 py-3">
+            <div className="flex items-center gap-3 text-sm text-cyan-200">
+              <MapPin className="h-4 w-4 text-cyan-400" />
+              <span>Active trip: <strong>{activeTrip.origin}</strong> → <strong>{activeTrip.destination}</strong></span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[{ label: 'Weather', to: '/weather' }, { label: 'Events', to: '/events' }, { label: 'Budget', to: '/budget' }, { label: 'Routes', to: '/routes' }].map(({ label, to }) => (
+                <Link key={to} to={to} className="inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-cyan-200 transition hover:bg-cyan-400/20">
+                  {label} <ArrowRight className="h-3 w-3" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Chat container ────────────────────────────────────────── */}
         <div className="flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 shadow-[0_40px_120px_rgba(15,23,42,0.6)] backdrop-blur-2xl">
 
@@ -571,7 +662,7 @@ const PlanTrip = () => {
             {messages.map((msg, idx) => (
               <ChatBubble key={idx} msg={msg} />
             ))}
-            {isTyping && <TypingIndicator />}
+            {isTyping && <TypingIndicator planning={planning} />}
             <div ref={messagesEndRef} />
           </div>
 

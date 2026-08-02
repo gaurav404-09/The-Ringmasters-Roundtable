@@ -6,7 +6,7 @@ import fs from "fs";
 import { fileURLToPath } from 'url';
 import http from 'http';
 import { Server } from 'socket.io';
-import amqp from 'amqplib';
+
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from "dotenv";
 import fetch from 'node-fetch';
@@ -19,11 +19,14 @@ import itineraryRoutes from './routes/itineraryRoutes.js';
 import compareRoutes from './routes/compareRoutes.js';
 import nearbyRoutes from './routes/nearbyRoutes.js';
 import communityRoutes from './routes/communityRoutes.js';
-import { startOpportunityScheduler, runOpportunityAgent } from './services/opportunityAgent.js';
-import opportunityRoutes from './routes/opportunityRoutes.js';
+
 import requestLogger from './middleware/requestLogger.js';
 import { getFlights, getHotels } from './services/amadeus.js';
 import { getTrains } from './services/trains.js';
+import freeDataService from './services/freeDataService.js';
+import CohereItineraryService from './services/cohereItineraryService.js';
+import { processChatMessage } from './services/chatAgent.js';
+import { executeAgenticPipeline } from './services/multiAgentOrchestrator.js';
 import { findCheapestTrip } from './services/optimizer.js';
 import crystalBallRoutes from './routes/crystalBallRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
@@ -41,7 +44,6 @@ const app = express();
 const server = http.createServer(app); // Create HTTP server from Express app
 console.log("Amadeus Key:", process.env.AMADEUS_CLIENT_ID);
 
-const ENABLE_RABBITMQ = process.env.ENABLE_RABBITMQ === 'true';
 const clientDistPath = path.join(__dirname, "client", "dist");
 const hasClientBuild = fs.existsSync(clientDistPath);
 
@@ -114,217 +116,102 @@ app.use('/api', compareRoutes);
 app.use('/api', nearbyRoutes);
 app.use('/api', crystalBallRoutes);
 app.use('/api/community', communityRoutes);
-app.use('/api/opportunities', opportunityRoutes);
+
 app.use('/api/analytics', analyticsRoutes);
 
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
 }
 
-// --- RABBITMQ & WEBSOCKET LOGIC (MCP Integration) ---
-
-const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
-let amqpConnection = null;
-let amqpChannel = null;
-let rabbitReconnectTimer = null;
-const tripSubscribers = new Map(); // Maps trip_id to a client's socket.id
-
-const scheduleRabbitReconnect = () => {
-  if (rabbitReconnectTimer) return;
-  rabbitReconnectTimer = setTimeout(() => {
-    rabbitReconnectTimer = null;
-    connectRabbitMQ().catch((error) => {
-      console.error(' [Server] RabbitMQ reconnection attempt failed:', error.message);
-    });
-  }, 5000);
-};
-
-async function connectRabbitMQ() {
-  if (!ENABLE_RABBITMQ) {
-    console.warn(' [Server] RabbitMQ connection attempted while disabled.');
-    return null;
-  }
-
-  if (amqpChannel) {
-    return amqpChannel;
-  }
-
-    try {
-        console.log(` [Server] Attempting to connect to RabbitMQ (${RABBITMQ_URL})...`);
-        const connection = await amqp.connect(RABBITMQ_URL);
-        amqpConnection = connection;
-
-        connection.on('close', () => {
-            console.warn(' [Server] RabbitMQ connection closed. Scheduling reconnect...');
-            amqpConnection = null;
-            amqpChannel = null;
-            scheduleRabbitReconnect();
-        });
-
-        connection.on('error', (error) => {
-            console.error(' [Server] RabbitMQ connection error:', error.message);
-        });
-
-        const channel = await connection.createChannel();
-        amqpChannel = channel;
-        console.log(' [Server] Connected to RabbitMQ');
-
-        // Ensure all necessary queues exist
-        await channel.assertQueue('trip_requests_queue', { durable: true });
-        await channel.assertQueue('trip_status_queue', { durable: true });
-        await channel.assertQueue('trip_results_queue', { durable: true });
-        await channel.assertQueue('chat_requests_queue', { durable: true });
-        await channel.assertQueue('chat_responses_queue', { durable: true });
-
-        // Listener for STATUS updates from the Python orchestrator
-        channel.consume('trip_status_queue', (msg) => {
-            if (msg !== null) {
-                const status = JSON.parse(msg.content.toString());
-                if (status.client_sid) {
-                    io.to(status.client_sid).emit('status_update', { message: status.message });
-                }
-                channel.ack(msg);
-            }
-        });
-        
-        // Listener for FINAL results from the Python orchestrator
-        channel.consume('trip_results_queue', (msg) => {
-            if (msg !== null) {
-                const result = JSON.parse(msg.content.toString());
-                const { trip_id, client_sid } = result;
-                console.log(` [Server] Received final result for trip ${trip_id}`);
-                
-                let targetSid = null;
-                if (tripSubscribers.has(trip_id)) {
-                    targetSid = tripSubscribers.get(trip_id);
-                    tripSubscribers.delete(trip_id); // Clean up
-                } else if (client_sid) {
-                    targetSid = client_sid;
-                }
-
-                if (targetSid) {
-                    io.to(targetSid).emit('trip_result', result);
-                } else {
-                    console.log(` [Server] Warning: No subscriber found for trip ${trip_id}`);
-                }
-                channel.ack(msg);
-            }
-        });
-        
-        // Listener for CHAT responses from the Python orchestrator
-        channel.consume('chat_responses_queue', (msg) => {
-            if (msg !== null) {
-                const response = JSON.parse(msg.content.toString());
-                if (response.client_sid) {
-                    io.to(response.client_sid).emit('chat_reply', { message: response.message });
-                }
-                channel.ack(msg);
-            }
-        });
-        
-        amqpChannel = channel;
-        return channel;
-    } catch (error) {
-        console.error(' [Server] RabbitMQ connection error. Retrying in 5 seconds...', error.message);
-        amqpConnection = null;
-        amqpChannel = null;
-        scheduleRabbitReconnect();
-        return null;
-    }
-}
-
-const ensureRabbitMQ = async () => {
-  if (!ENABLE_RABBITMQ) return null;
-  if (amqpChannel) return amqpChannel;
-  return connectRabbitMQ();
-};
-
-// Only attempt to connect to RabbitMQ if enabled
-if (ENABLE_RABBITMQ) {
-    ensureRabbitMQ().catch((error) => {
-        console.error(' [Server] Failed to initialize RabbitMQ:', error.message);
-    });
-} else {
-    console.log(' [Server] RabbitMQ is disabled (ENABLE_RABBITMQ is not set to true)');
-}
+// // --- WEBSOCKET LOGIC ---
 
 io.on('connection', (socket) => {
     console.log(` [Server] Client connected: ${socket.id}`);
 
     // This is the new endpoint for planning a trip with the agent system
     socket.on('plan_trip', async (data) => {
-        if (!ENABLE_RABBITMQ) {
-            return socket.emit('status_update', {
-                error: 'RabbitMQ is not enabled',
-                message: 'This feature requires RabbitMQ to be enabled and running.'
-            });
-        }
-
-        const channel = await ensureRabbitMQ();
-        if (!channel) {
-            return socket.emit('status_update', { 
-                error: 'RabbitMQ is not enabled or not connected',
-                message: 'This feature requires RabbitMQ to be enabled and running.' 
-            });
-        }
-        
-        const trip_id = uuidv4();
-        tripSubscribers.set(trip_id, socket.id);
-
-        const message = {
-            trip_id,
-            client_sid: socket.id, 
-            payload: {
-                start_city: data.start_city,
-                end_city: data.end_city,
-                start_date: data.start_date,
-                end_date: data.end_date,
-                num_days: parseInt(data.num_days, 10),
-                transport_mode: data.transport_mode || 'train_flight',
-            },
+        const payload = {
+            startCity: data.start_city,
+            endCity: data.end_city,
+            start_date: data.start_date,
+            end_date: data.end_date,
+            numDays: parseInt(data.num_days, 10),
+            transport_mode: data.transport_mode || 'train_flight',
+            interests: data.interests || []
         };
-
-        try {
-            // Send the job to the Python orchestrator
-            channel.sendToQueue(
-              'trip_requests_queue',
-              Buffer.from(JSON.stringify(message)),
-              { persistent: true }
-            );
-
-            console.log(` [Server] Sent job for trip ${trip_id} to orchestrator.`);
-            socket.emit('status_update', { message: `Trip request sent for ${data.start_city} to ${data.end_city}.` });
-        } catch (error) {
-            console.error(' [Server] Failed to enqueue trip request:', error.message);
-            socket.emit('status_update', {
-              error: 'Failed to queue trip request',
-              message: 'RabbitMQ accepted the connection but queueing failed. Check server logs.'
-            });
-        }
+        
+        generateDirectTripPlan(socket, payload).catch((err) => {
+          if (err.name === 'DatabaseConnectionError') {
+            console.error('[Server] Persistence error after trip delivery:', err.message);
+          } else {
+            console.error('[Server] Error in direct trip planning:', err);
+            socket.emit('status_update', { message: `🚨 Pipeline Error: ${err.message}`, stage: 'error' });
+          }
+        });
     });
 
     // Handle chat messages from the frontend Chatbot
     socket.on('chat_message', async (data) => {
-        if (!ENABLE_RABBITMQ) return;
-        const channel = await ensureRabbitMQ();
-        if (!channel) return;
+        const text = (data.text || '').trim();
+        if (!text) return;
 
-        const message = {
-            client_sid: socket.id,
-            text: data.text,
-        };
+        // Process message through conversational agent
+        const { reply, triggerPayload } = await processChatMessage(socket.id, text);
 
-        try {
-            channel.sendToQueue(
-              'chat_requests_queue',
-              Buffer.from(JSON.stringify(message)),
-              { persistent: true }
-            );
-            console.log(` [Server] Sent chat message from ${socket.id} to orchestrator.`);
-        } catch (error) {
-            console.error(' [Server] Failed to enqueue chat message:', error.message);
+        // If the agent is not ready to trigger the plan, just send the conversational reply
+        if (!triggerPayload) {
+            socket.emit('chat_reply', { message: reply });
+            return;
         }
+
+        // The agent gathered all details! Send the final confirmation reply
+        socket.emit('chat_reply', { message: reply });
+
+        // Then execute the direct trip plan generator with the extracted payload
+        generateDirectTripPlan(socket, triggerPayload).catch((err) => {
+          if (err.name === 'DatabaseConnectionError') {
+            console.error('[Server] Persistence error after trip delivery:', err.message);
+          } else {
+            console.error('[Server] Error in direct trip planning:', err);
+            socket.emit('status_update', { message: `🚨 Pipeline Error: ${err.message}`, stage: 'error' });
+          }
+        });
+
     });
+
+/**
+ * Direct fast orchestrator — parses trip intent and streams live status updates
+ * & complete structured itinerary to the client in ~2 seconds.
+ */
+async function generateDirectTripPlan(socket, params) {
+  // Use params extracted by the chat agent, or fallbacks if text was passed somehow
+  const numDays = params.numDays || 3;
+  let startCity = params.startCity || 'Delhi';
+  let endCity = params.endCity || 'Jaipur';
+
+  const startDateObj = new Date();
+  const startDateStr = startDateObj.toISOString().split('T')[0];
+  const endDateObj = new Date(startDateObj.getTime() + (numDays - 1) * 86400000);
+  const endDateStr = endDateObj.toISOString().split('T')[0];
+  const tripId = `trip_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+  // Combine properties required by the multi-agent orchestrator
+  const orchestratorParams = {
+    ...params,
+    numDays,
+    startCity,
+    endCity,
+    startDateObj,
+    startDateStr,
+    endDateStr,
+    tripId
+  };
+
+  // Launch the true AI agent pipeline (Planner -> Critic -> Itinerary)
+  await executeAgenticPipeline(socket, orchestratorParams);
+}
+
+
 
     socket.on('disconnect', () => {
         console.log(` [Server] Client disconnected: ${socket.id}`);
@@ -728,19 +615,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
   console.log(`WebSocket server is running on ws://0.0.0.0:${PORT}/socket.io/`);
   console.log('Server is ready to accept connections');
-  
-  // Connect to RabbitMQ if enabled
-  if (process.env.ENABLE_RABBITMQ === 'true') {
-    connectRabbitMQ().catch(console.error);
-  }
-
-  startOpportunityScheduler();
-
-  if (process.env.PIP_AGENT_ENABLED === 'true') {
-    runOpportunityAgent().catch((error) => {
-      console.error('[OpportunityAgent] Initial run failed:', error);
-    });
-  }
+  console.log(' [Server] Backend initialization complete.');
 });
 
 // Handle unhandled promise rejections

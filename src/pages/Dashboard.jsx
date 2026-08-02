@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -663,6 +663,22 @@ const Dashboard = () => {
               </Link>
             )}
 
+            <Link
+              to="/trip-summary"
+              state={{
+                route: {
+                  origin: trip.startCity || '',
+                  destination: trip.endCity || '',
+                  coords: [],
+                  distance: trip.result?.distance || '',
+                  duration: trip.numDays ? `${trip.numDays} days` : '',
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-indigo-300/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-indigo-200 transition hover:bg-indigo-400/10"
+            >
+              Trip Summary →
+            </Link>
+
             <button
               type="button"
               onClick={() => handleDeleteTrip(trip.id)}
@@ -716,7 +732,9 @@ const Dashboard = () => {
                           </div>
                           {day?.weather && (
                             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/70">
-                              {day.weather.temp}°C · {day.weather.weather}
+                              {day.weather.available === false 
+                                ? day.weather.weather 
+                                : `${day.weather.temp}°C · ${day.weather.weather}`}
                             </span>
                           )}
                         </div>

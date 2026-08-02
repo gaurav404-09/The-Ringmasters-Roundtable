@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
-const traceDir = path.join(__dirname, '../mcp-ai/logs/traces');
+const traceDir = path.join(__dirname, '../logs/traces');
 
 // Helper to ensure trace directory exists and read JSON files matching a pattern
 const readJsonLogs = (pattern) => {

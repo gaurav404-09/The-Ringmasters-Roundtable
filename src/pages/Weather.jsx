@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTripContext } from '../context/TripContext';
 import { AnimatePresence, motion } from "framer-motion";
 import {
   WiDaySunny,
@@ -245,6 +246,7 @@ const getWeatherIcon = (condition, isDaytime) => {
 };
 
 const Weather = () => {
+  const { activeTrip } = useTripContext();
   const [query, setQuery] = useState("Delhi");
   const [current, setCurrent] = useState(null);
   const [forecast, setForecast] = useState([]);
@@ -357,6 +359,15 @@ const Weather = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // If user has an active trip, auto-switch to that destination
+  useEffect(() => {
+    if (activeTrip?.destination) {
+      setQuery(activeTrip.destination);
+      fetchWeather(activeTrip.destination);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTrip?.destination]);
+
   useEffect(() => {
     if (!showClip) return;
     const timer = setTimeout(() => setShowClip(false), 2200);
@@ -434,6 +445,12 @@ const Weather = () => {
                 Hyper-realistic conditions, macOS inspired animations, and detailed climate insights tailored to your journey.
               </p>
             </div>
+            {activeTrip?.destination && (
+              <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white/80 backdrop-blur">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                Showing weather for your active trip · {activeTrip.destination}
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
               <div className="flex flex-1 items-center gap-3 rounded-full border border-white/25 bg-white/15 px-6 py-3 text-sm text-white/85 focus-within:border-white/60">
                 <WiStrongWind className="text-lg text-white/70" />

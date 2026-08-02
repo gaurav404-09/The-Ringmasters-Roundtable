@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { io } from 'socket.io-client';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Bot, User, Send, X, MessageSquareText } from 'lucide-react';
-import ENV from '../config/env';
+import { useSocket } from '../context/SocketContext';
 
 const Chatbot = () => {
   const navigate = useNavigate();
@@ -12,68 +11,48 @@ const Chatbot = () => {
     { role: 'bot', text: 'Hi! I am your AI Travel Agent. Where would you like to go?' }
   ]);
   const [input, setInput] = useState('');
-  const [socket, setSocket] = useState(null);
+  const socket = useSocket();
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    const newSocket = io(ENV.WS_URL, {
-      path: '/socket.io/',
-      transports: ['polling', 'websocket'],
-    });
+    if (!socket) return;
 
-    setSocket(newSocket);
-
-    newSocket.on('chat_reply', (data) => {
+    const handleChatReply = (data) => {
       setIsTyping(false);
       setMessages((prev) => [...prev, { role: 'bot', text: data.message }]);
-    });
+    };
     
-    newSocket.on('status_update', (data) => {
+    const handleStatusUpdate = (data) => {
       if (data?.message) {
          setMessages((prev) => [...prev, { role: 'bot', text: `*[System]* ${data.message}` }]);
          
-         const isPlanningStart = data.message.includes("Starting AI-powered trip planning");
-         const isPlanningFailure = data.message.includes("❌") || data.message.toLowerCase().includes("failed");
+         const isPlanningStart = data.stage === 'start';
 
          if (isPlanningStart) {
-           window.chatbotActivePlan = true;
-           window.chatbotLogs = [data.message];
            navigate('/planner');
            setTimeout(() => {
              setIsOpen(false);
            }, 1000);
-         } else if (window.chatbotActivePlan) {
-           if (!window.chatbotLogs) window.chatbotLogs = [];
-           if (!window.chatbotLogs.includes(data.message)) {
-             window.chatbotLogs.push(data.message);
-           }
-           if (isPlanningFailure) {
-             window.chatbotActivePlan = false;
-           }
          }
-
-         // Dispatch event with a tiny delay to ensure page rendering / mount is completed
-         setTimeout(() => {
-           window.dispatchEvent(new CustomEvent('chatbot_status_update', { detail: data }));
-         }, 50);
       }
-    });
+    };
 
-    newSocket.on('trip_result', (data) => {
+    const handleTripResult = (data) => {
       setIsTyping(false);
-      window.chatbotActivePlan = false;
-      window.chatbotLogs = [];
       navigate('/planner');
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('chatbot_trip_result', { detail: data }));
-      }, 50);
-    });
+    };
+
+    socket.on('chat_reply', handleChatReply);
+    socket.on('status_update', handleStatusUpdate);
+    socket.on('trip_result', handleTripResult);
 
     return () => {
-      newSocket.close();
+      socket.off('chat_reply', handleChatReply);
+      socket.off('status_update', handleStatusUpdate);
+      socket.off('trip_result', handleTripResult);
     };
-  }, [navigate]);
+  }, [socket, navigate]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

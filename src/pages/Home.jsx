@@ -261,10 +261,13 @@ const Index = () => {
               <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_25px_65px_rgba(15,23,42,0.45)] backdrop-blur">
                 <div className="flex items-center gap-3">
                   <Bot className="h-6 w-6 text-cyan-200" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Live agent feed</p>
                     <h3 className="mt-2 text-2xl font-semibold text-white">Orchestrator highlights the latest handoffs</h3>
                   </div>
+                  <span className="flex-shrink-0 rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-white/40">
+                    Illustrative
+                  </span>
                 </div>
                 <p className="mt-4 text-sm text-white/70">
                   Agents post updates as they balance weather alerts, budget moves, and route locks. Share the workspace and watch your crew track
@@ -296,7 +299,12 @@ const Index = () => {
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_25px_65px_rgba(15,23,42,0.45)] backdrop-blur">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Agent queue</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">Agent queue</h3>
+                  <span className="rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-white/40">
+                    Illustrative
+                  </span>
+                </div>
                 <p className="mt-3 text-sm text-white/70">Who is on deck and what they just shipped.</p>
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
                   {agentSignals.map((signal, index) => {

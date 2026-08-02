@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "../components/ui/button";
+import { useTripContext } from '../context/TripContext';
 import Particles from "../components/particles";
 import {
   Sparkles,
@@ -116,6 +117,7 @@ const getActivityIcon = (activity = "") => {
 
 const CrystalBall = () => {
   const navigate = useNavigate();
+  const { setActiveTrip } = useTripContext();
   const containerRef = useRef(null);
   const [answers, setAnswers] = useState({ vibe: "", setting: "", pace: "" });
   const [status, setStatus] = useState("idle");
@@ -125,6 +127,11 @@ const CrystalBall = () => {
   const canReveal = Object.values(answers).every(Boolean);
   const isConjuring = status === "loading";
   const hasVisions = status === "success" && visions.length > 0;
+
+  const planThisTrip = (visionName) => {
+    setActiveTrip({ destination: visionName });
+    navigate('/planner');
+  };
 
   const updateAnswer = (questionId, value) => {
     if (isConjuring) return;
@@ -389,6 +396,15 @@ const CrystalBall = () => {
                           <span className="mt-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-100">
                             {vision.vibe}
                           </span>
+                        )}
+                        {vision.name && (
+                          <button
+                            type="button"
+                            onClick={() => planThisTrip(vision.name)}
+                            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-4 py-2.5 text-xs font-semibold uppercase tracking-widest text-white shadow-[0_12px_32px_rgba(168,85,247,0.4)] transition hover:scale-[1.02] hover:shadow-[0_16px_40px_rgba(168,85,247,0.5)]"
+                          >
+                            <Wand2 className="h-3.5 w-3.5" /> Plan this trip →
+                          </button>
                         )}
                       </motion.div>
                     ))}

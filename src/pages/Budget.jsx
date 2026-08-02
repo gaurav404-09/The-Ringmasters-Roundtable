@@ -1,5 +1,6 @@
 // Budget.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useTripContext } from '../context/TripContext';
 import api from "../utils/api";
 import toast, { Toaster } from "react-hot-toast";
 import AutocompleteInput from "../components/AutocompleteInput";
@@ -41,6 +42,7 @@ const formatCurrency = (amount, code = "INR") => {
 };
 
 const Budget = () => {
+  const { activeTrip } = useTripContext();
   const [origin, setOrigin] = useState("");
   const [originIata, setOriginIata] = useState("");
   const [destination, setDestination] = useState("");
@@ -129,6 +131,21 @@ const Budget = () => {
     const iataCode = getCityCode(value);
     setDestinationIata(iataCode);
   };
+
+  // Auto-populate from active trip
+  useEffect(() => {
+    if (activeTrip?.origin) {
+      handleOriginChange(activeTrip.origin);
+    }
+    if (activeTrip?.destination) {
+      handleDestinationChange(activeTrip.destination);
+    }
+    if (activeTrip?.departureDate) {
+      setDepartureDate(activeTrip.departureDate);
+      setCheckIn(activeTrip.departureDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTrip?.origin, activeTrip?.destination]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -307,6 +324,12 @@ const Budget = () => {
             </p>
 
             <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+              {activeTrip?.origin && activeTrip?.destination && (
+                <div className="flex items-center gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/8 px-4 py-3 text-sm text-amber-200">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                  Pre-filled from your active trip · <strong>{activeTrip.origin}</strong> → <strong>{activeTrip.destination}</strong>
+                </div>
+              )}
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/60">

@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useTripContext } from '../context/TripContext';
 
 const clampRating = (value) => {
   if (Number.isNaN(value)) return 0;
@@ -174,6 +176,8 @@ const normalizeDestination = (dest) => {
 };
 
 const Compare = () => {
+  const navigate = useNavigate();
+  const { setActiveTrip } = useTripContext();
   const [destinations, setDestinations] = useState({});
   const [destination1Input, setDestination1Input] = useState("");
   const [destination2Input, setDestination2Input] = useState("");
@@ -844,6 +848,30 @@ const Compare = () => {
             )}
           </div>
         )}
+
+        {/* ── Plan with Winner CTA ──────────────────────────────────────── */}
+        {(destinations.left || destinations.right) && getOverallWinner() !== 'tie' && (() => {
+          const winnerCity = getOverallWinner() === 'left' ? destinations.left?.name : destinations.right?.name;
+          if (!winnerCity) return null;
+          return (
+            <div className="mt-10 overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 p-[1px] shadow-[0_24px_70px_rgba(139,92,246,0.45)]">
+              <div className="flex flex-col items-center gap-5 rounded-[23px] bg-slate-950/85 px-8 py-8 text-center backdrop-blur-xl sm:flex-row sm:text-left">
+                <div className="text-5xl">🏆</div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.4em] text-violet-300">The Ringmaster declares a winner</p>
+                  <h3 className="mt-1 text-2xl font-black text-white">The oracle chose <span className="text-fuchsia-300">{winnerCity}</span></h3>
+                  <p className="mt-1 text-sm text-white/60">{getWinnerReason()}</p>
+                </div>
+                <button
+                  onClick={() => { setActiveTrip({ destination: winnerCity }); navigate('/planner'); }}
+                  className="inline-flex flex-shrink-0 items-center gap-2 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 px-7 py-3.5 text-sm font-semibold uppercase tracking-widest text-white shadow-[0_16px_44px_rgba(168,85,247,0.5)] transition hover:scale-105"
+                >
+                  Plan a trip to {winnerCity} →
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Empty State */}
         {!destinations.left && !destinations.right && !isLoading && (

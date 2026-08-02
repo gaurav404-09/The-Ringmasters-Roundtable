@@ -5,7 +5,8 @@ import { setWasmUrl } from '@lottiefiles/dotlottie-react';
 import App from './App'
 import './index.css'
 import { AuthProvider } from './context/AuthContext'
-import { PipProvider } from './context/PipContext.jsx'
+import { TripProvider } from './context/TripContext'
+import { SocketProvider } from './context/SocketContext'
 
 setWasmUrl('/dotlottie-player.wasm');
 
@@ -18,9 +19,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       }}
     >
       <AuthProvider>
-        <PipProvider>
-          <App />
-        </PipProvider>
+        <SocketProvider>
+          <TripProvider>
+            <App />
+          </TripProvider>
+        </SocketProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,

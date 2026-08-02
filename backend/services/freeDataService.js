@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { CityDataFetchError } from '../utils/errors.js';
 
 class FreeDataService {
   constructor() {
@@ -47,42 +48,50 @@ class FreeDataService {
       console.warn(`[FreeDataService] No coordinates found for: ${destination}`);
       throw new Error('No results found for the specified location');
     } catch (error) {
-      console.error(`[FreeDataService] Error getting coordinates for ${destination}:`, error.message);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Status:', error.response.status);
-      }
+      throw new CityDataFetchError(error.message, destination, 'getCoordinates', error);
     }
   }
 
-  // Query Overpass API
+  // Query Overpass API with exponential backoff (max 3 attempts)
   async queryOverpass(query) {
-    console.log('[FreeDataService] Sending query to Overpass API');
-    try {
-      const response = await axios.post(this.overpassBaseUrl, query, {
-        headers: { 
-          'Content-Type': 'text/plain',
-          'User-Agent': 'TravelApp/1.0 (https://yourapp.com; contact@yourapp.com)'
-        },
-        timeout: 30000
-      });
-      
-      if (!response.data || !Array.isArray(response.data.elements)) {
-        console.warn('[FreeDataService] Unexpected response format from Overpass:', response.data);
-        return [];
+    const maxRetries = 3;
+    let attempt = 1;
+    let waitTimeMs = 1000;
+
+    while (attempt <= maxRetries) {
+      console.log(`[FreeDataService] Sending query to Overpass API (Attempt ${attempt}/${maxRetries})`);
+      try {
+        const response = await axios.post(this.overpassBaseUrl, query, {
+          headers: { 
+            'Content-Type': 'text/plain',
+            'User-Agent': 'TravelApp/1.0 (https://yourapp.com; contact@yourapp.com)'
+          },
+          timeout: 30000
+        });
+        
+        if (!response.data || !Array.isArray(response.data.elements)) {
+          console.warn('[FreeDataService] Unexpected response format from Overpass:', response.data);
+          return [];
+        }
+        
+        console.log(`[FreeDataService] Received ${response.data.elements.length} elements from Overpass on attempt ${attempt}`);
+        return response.data.elements;
+      } catch (error) {
+        console.error(`[FreeDataService] Overpass API error on attempt ${attempt}:`, error.message);
+        if (error.response && error.response.status === 429) {
+          console.warn(`[FreeDataService] Overpass rate limit hit.`);
+        }
+        
+        if (attempt === maxRetries) {
+          console.error(`[FreeDataService] Exhausted all ${maxRetries} Overpass API attempts.`);
+          throw error; // Let the caller wrap it in CityDataFetchError
+        }
+        
+        console.log(`[FreeDataService] Waiting ${waitTimeMs}ms before next Overpass attempt...`);
+        await new Promise(r => setTimeout(r, waitTimeMs));
+        waitTimeMs *= 2; // Exponential backoff (1s, 2s, 4s)
+        attempt++;
       }
-      
-      console.log(`[FreeDataService] Received ${response.data.elements.length} elements from Overpass`);
-      return response.data.elements;
-    } catch (error) {
-      console.error('[FreeDataService] Overpass API error:', error.message);
-      if (error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response data:', error.response.data);
-      } else if (error.request) {
-        console.error('No response received from Overpass API');
-      }
-      throw error;
     }
   }
 
@@ -142,15 +151,15 @@ class FreeDataService {
 
       const query = `[out:json][timeout:25];
 (
-  node["tourism"](around:5000,${lat},${lon});
-  way["tourism"](around:5000,${lat},${lon});
-  relation["tourism"](around:5000,${lat},${lon});
+  node["tourism"]["tourism"!~"hotel|guest_house|hostel|motel|apartment|camp_site|caravan_site"](around:5000,${lat},${lon});
+  way["tourism"]["tourism"!~"hotel|guest_house|hostel|motel|apartment|camp_site|caravan_site"](around:5000,${lat},${lon});
+  relation["tourism"]["tourism"!~"hotel|guest_house|hostel|motel|apartment|camp_site|caravan_site"](around:5000,${lat},${lon});
   node["historic"](around:5000,${lat},${lon});
   way["historic"](around:5000,${lat},${lon});
   relation["historic"](around:5000,${lat},${lon});
-  node["leisure"]["leisure"!~"park|pitch|sports_centre|stadium"](around:5000,${lat},${lon});
-  way["leisure"]["leisure"!~"park|pitch|sports_centre|stadium"](around:5000,${lat},${lon});
-  relation["leisure"]["leisure"!~"park|pitch|sports_centre|stadium"](around:5000,${lat},${lon});
+  node["leisure"]["leisure"!~"park|pitch|sports_centre|stadium|golf_course|fitness_centre"](around:5000,${lat},${lon});
+  way["leisure"]["leisure"!~"park|pitch|sports_centre|stadium|golf_course|fitness_centre"](around:5000,${lat},${lon});
+  relation["leisure"]["leisure"!~"park|pitch|sports_centre|stadium|golf_course|fitness_centre"](around:5000,${lat},${lon});
 );
 out body 50;
 >;
@@ -175,12 +184,8 @@ out skel qt;`;
       console.log(`[FreeDataService] Found ${attractions.length} attractions for ${destination}`);
       return attractions;
     } catch (error) {
-      console.error(`[FreeDataService] Error fetching attractions for ${destination}:`, error);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Status code:', error.response.status);
-      }
-      return [];
+      console.error(`[FreeDataService] Error fetching attractions for ${destination}:`, error.message);
+      throw new CityDataFetchError(`Failed to fetch attractions for ${destination}`, destination, 'getAttractions', error);
     }
   }
 
@@ -224,12 +229,8 @@ out skel qt;`;
       console.log(`[FreeDataService] Found ${restaurants.length} restaurants for ${destination}`);
       return restaurants;
     } catch (error) {
-      console.error(`[FreeDataService] Error fetching restaurants for ${destination}:`, error);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Status code:', error.response.status);
-      }
-      return [];
+      console.error(`[FreeDataService] Error fetching restaurants for ${destination}:`, error.message);
+      throw new CityDataFetchError(`Failed to fetch restaurants for ${destination}`, destination, 'getRestaurants', error);
     }
   }
 
@@ -263,7 +264,7 @@ out body 10;`;
         .slice(0, 8);
     } catch (error) {
       console.error('Error fetching hotels:', error.message);
-      return [];
+      throw new CityDataFetchError(`Failed to fetch hotels for ${destination}`, destination, 'getHotels', error);
     }
   }
 
@@ -332,9 +333,9 @@ out skel qt;`;
     }
   }
 
-  // Get weather data
-  async getWeather(destination) {
-    console.log(`[FreeDataService] Getting weather for: ${destination}`);
+  // Get weather data aligned to specific dates
+  async getWeather(destination, targetDatesArray = []) {
+    console.log(`[FreeDataService] Getting weather for: ${destination} for dates:`, targetDatesArray);
     try {
       if (!this.weatherApiKey) {
         console.error('[FreeDataService] OpenWeatherMap API key is not configured');
@@ -343,7 +344,7 @@ out skel qt;`;
 
       const { lat, lon } = await this.getCoordinates(destination);
       
-      const response = await axios.get(`${this.weatherBaseUrl}/weather`, {
+      const response = await axios.get(`${this.weatherBaseUrl}/forecast`, {
         params: {
           lat,
           lon,
@@ -354,33 +355,43 @@ out skel qt;`;
         validateStatus: (status) => status < 500 // Don't throw for 4xx errors
       });
 
-      if (response.status === 200 && response.data) {
-        console.log(`[FreeDataService] Weather data for ${destination}:`, {
-          temp: response.data.main.temp,
-          description: response.data.weather[0].description
-        });
-        return {
-          temp: response.data.main.temp,
-          description: response.data.weather[0].description,
-          icon: response.data.weather[0].icon,
-          humidity: response.data.main.humidity,
-          windSpeed: response.data.wind.speed
-        };
-      } else if (response.status === 401) {
-        console.error('[FreeDataService] Invalid OpenWeatherMap API key');
-      } else if (response.status === 404) {
-        console.warn(`[FreeDataService] No weather data found for: ${destination}`);
+      if (response.status === 200 && response.data && response.data.list) {
+        // Group forecasts by date
+        const forecastByDate = {};
+        for (const item of response.data.list) {
+          const dateStr = item.dt_txt.split(' ')[0]; // YYYY-MM-DD
+          
+          if (!forecastByDate[dateStr]) {
+            forecastByDate[dateStr] = [];
+          }
+          forecastByDate[dateStr].push(item);
+        }
+
+        const results = {};
+        for (const dateStr of targetDatesArray) {
+           if (forecastByDate[dateStr]) {
+             // Find closest to noon (12:00:00)
+             const noonForecast = forecastByDate[dateStr].find(f => f.dt_txt.includes('12:00:00')) || forecastByDate[dateStr][0];
+             results[dateStr] = {
+               temp: Math.round(noonForecast.main.temp),
+               description: noonForecast.weather[0].description,
+               available: true
+             };
+           } else {
+             results[dateStr] = {
+               temp: null,
+               description: "Forecast unavailable",
+               available: false
+             };
+           }
+        }
+        return results;
       } else {
-        console.error(`[FreeDataService] Weather API error: ${response.status}`, response.data);
+        throw new Error(`Weather API returned status: ${response.status}`);
       }
-      
-      return null; // Return null instead of throwing to prevent breaking the comparison
     } catch (error) {
       console.error(`[FreeDataService] Error getting weather for ${destination}:`, error.message);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Status:', error.response.status);
-      }
+      // Fail gracefully so trip planning can still proceed even if weather fails
       return null;
     }
   }
@@ -414,6 +425,26 @@ out skel qt;`;
     if (budget === 'high') return '$$$';
     return '$$';
   }
+
+  // Get driving distance using OSRM
+  async getDrivingData(city1, city2) {
+    try {
+      const c1 = await this.getCoordinates(city1);
+      const c2 = await this.getCoordinates(city2);
+
+      const url = `https://router.project-osrm.org/route/v1/driving/${c1.lon},${c1.lat};${c2.lon},${c2.lat}?overview=false`;
+      const res = await axios.get(url, { timeout: 10000 });
+      
+      if (res.data.routes && res.data.routes.length > 0) {
+        const distanceKm = (res.data.routes[0].distance / 1000).toFixed(1);
+        const durationHrs = (res.data.routes[0].duration / 3600).toFixed(1);
+        return { distanceKm: parseFloat(distanceKm), durationHrs: parseFloat(durationHrs) };
+      }
+      throw new Error('No routes returned from OSRM');
+    } catch (err) {
+      throw new Error(`Failed to fetch routing data between ${city1} and ${city2}: ${err.message}`);
+    }
+  }
 }
 
 const freeDataService = new FreeDataService();
@@ -424,6 +455,6 @@ export default freeDataService;
 export const getAttractions = (destination, budget) => freeDataService.getAttractions(destination, budget);
 export const getRestaurants = (destination, budget) => freeDataService.getRestaurants(destination, budget);
 export const getHotels = (destination, budget) => freeDataService.getHotels(destination, budget);
-export const getWeather = (destination) => freeDataService.getWeather(destination);
+export const getWeather = (destination, targetDatesArray) => freeDataService.getWeather(destination, targetDatesArray);
 export const getBudgetSymbol = (budget) => freeDataService.getBudgetSymbol(budget);
 export const getNearbyPlaces = (coords, options) => freeDataService.getNearbyPlaces(coords, options);

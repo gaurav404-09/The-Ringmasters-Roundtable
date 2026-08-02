@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTripContext } from '../context/TripContext';
 import AutocompleteInput from "../components/AutocompleteInput";
 import MapView from "../components/MapView";
 import ENV from "../config/env";
@@ -94,6 +95,7 @@ const TRAVEL_TIPS = [
 ];
 
 const RoutesPage = () => {
+  const { activeTrip } = useTripContext();
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [travelMode, setTravelMode] = useState("driving");
@@ -129,8 +131,13 @@ const RoutesPage = () => {
       if (from) setOrigin(from);
       if (to) setDestination(to);
       setInitialLoad(false);
+    } else if (initialLoad && !location.state) {
+      // Fall back to active trip context
+      if (activeTrip?.origin) setOrigin(activeTrip.origin);
+      if (activeTrip?.destination) setDestination(activeTrip.destination);
+      setInitialLoad(false);
     }
-  }, [location.state, initialLoad]);
+  }, [location.state, initialLoad, activeTrip]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
